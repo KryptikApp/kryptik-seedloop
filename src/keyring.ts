@@ -3,8 +3,8 @@ import {Wallet} from "@ethersproject/wallet"
 import { HDNode } from "@ethersproject/hdnode"
 import { TransactionRequest } from "@ethersproject/abstract-provider"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
-import { normalizeHexAddress, validateAndFormatMnemonic, Options, defaultOptions } from "./utils.js"
-import { Network, NetworkFromTicker } from "./network.js"
+import { normalizeHexAddress, validateAndFormatMnemonic, Options, defaultOptions } from "./utils"
+import { Network, NetworkFromTicker } from "./network"
 
 
 
