@@ -44,8 +44,8 @@ export class Network implements HDCoin {
     // BIP-44 coin code
     readonly chainId: number
 
-    constructor(name: string, ticker: string) {
-        this.fullName = name
+    constructor(fullName: string, ticker: string) {
+        this.fullName = fullName
         this.ticker = ticker.toLowerCase();
         // ensure coin ticker is in coinTypes before we search
         if (!(this.ticker in NetworkInfoDict)) {
