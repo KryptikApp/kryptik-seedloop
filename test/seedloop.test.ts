@@ -1,5 +1,5 @@
 import HDSeedLoop from "../src"
-import { defaultNetworks } from "../src/network.js";
+import { defaultNetworks } from "../src/network";
 
 const validMnemonics = [
     "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else",

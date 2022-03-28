@@ -1,13 +1,13 @@
 // the seed loop holds the seed and keyrings that share the common seed. Each keyring is responsible for a different coin.
 import * as bip from "bip39"
-import { Network, defaultNetworks } from "./network.js"
-import HDKeyring from "./keyring.js"
-import HDKeyRing, { SerializedHDKeyring } from "./keyring.js"
-import { validateAndFormatMnemonic, Options, defaultOptions } from "./utils.js"
+import { Network, defaultNetworks } from "./network"
+import HDKeyring from "./keyring"
+import HDKeyRing, { SerializedHDKeyring } from "./keyring"
+import { validateAndFormatMnemonic, Options, defaultOptions } from "./utils"
 export {
     normalizeHexAddress,
     normalizeMnemonic
-} from "./utils.js"
+} from "./utils"
 
 export type SerializedSeedLoop = {
     version: number

@@ -20,6 +20,7 @@ export let NetworkInfoDict:{[name: string]: NewtorkInfo}  = {
     zec: new NewtorkInfo(133, NetworkFamily.Bitcoin), 
     bch: new NewtorkInfo(145, NetworkFamily.Bitcoin), 
     sol: new NewtorkInfo(145, NetworkFamily.Solana), 
+    near: new NewtorkInfo(397, NetworkFamily.EVM), 
     pokt: new NewtorkInfo(635, NetworkFamily.EVM), 
     bnb: new NewtorkInfo(714, NetworkFamily.EVM), 
     avaxc: new NewtorkInfo(9005, NetworkFamily.Solana), 
