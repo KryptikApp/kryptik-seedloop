@@ -1,206 +1,233 @@
-import * as bip from "bip39"
-import {Wallet} from "@ethersproject/wallet"
-import { HDNode } from "@ethersproject/hdnode"
 import { TransactionRequest } from "@ethersproject/abstract-provider"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
-import { normalizeHexAddress, validateAndFormatMnemonic, Options, defaultOptions } from "./utils"
+import { HDNode } from "@ethersproject/hdnode"
+import { Wallet } from "@ethersproject/wallet"
+
+import { generateMnemonic } from "bip39"
 import { Network, NetworkFromTicker } from "./network"
 
+import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
+
+export {
+  normalizeHexAddress,
+  normalizeMnemonic,
+  toChecksumAddress,
+  validateAndFormatMnemonic,
+} from "./utils"
+
+
+export type Options = {
+    strength?: number
+    path?: string
+    mnemonic?: string | null
+    networkTicker?: string
+    isCreation?: boolean
+    passphrase?: string|null
+}
+
+export const defaultOptions = {
+  // default path is BIP-44, where depth 5 is the address index
+  path: "m/44'/60'/0'/0",
+  strength: 128,
+  mnemonic: null,
+  networkTicker: "Eth",
+  passphrase: null,
+  isCreation: true
+}
 
 
 
 
 export type SerializedHDKeyring = {
-    version: number
-    id: string
-    mnemonic: string
-    path: string
-    keyringType: string
-    addressIndex: number
-    networkTicker: string
+  version: number
+  id: string
+  mnemonic: string
+  path: string
+  keyringType: string
+  addressIndex: number
+  networkTicker: string
 }
 
 export interface Keyring<T> {
-    serialize(): Promise<T>
-    getAddresses(): Promise<string[]>
-    addAddresses(n?: number): Promise<string[]>
-    signTransaction(
-        address: string,
-        transaction: TransactionRequest
-    ): Promise<string>
-    signTypedData(
-        address: string,
-        domain: TypedDataDomain,
-        types: Record<string, Array<TypedDataField>>,
-        value: Record<string, unknown>
-    ): Promise<string>
-    signMessage(address: string, message: string): Promise<string>
+  serialize(): Promise<T>
+  getAddresses(): Promise<string[]>
+  addAddresses(n?: number): Promise<string[]>
+  signTransaction(
+    address: string,
+    transaction: TransactionRequest
+  ): Promise<string>
+  signTypedData(
+    address: string,
+    domain: TypedDataDomain,
+    types: Record<string, Array<TypedDataField>>,
+    value: Record<string, unknown>
+  ): Promise<string>
+  signMessage(address: string, message: string): Promise<string>
 }
 
 export interface KeyringClass<T> {
-    new(): Keyring<T>
-    deserialize(serializedKeyring: T): Promise<Keyring<T>>
+  new (): Keyring<T>
+  deserialize(serializedKeyring: T): Promise<Keyring<T>>
 }
 
-
-
 export default class HDKeyring implements Keyring<SerializedHDKeyring> {
-    static readonly type: string = "bip32"
+  static readonly type: string = "bip32"
 
-    readonly path: string
+  readonly path: string
 
-    readonly id: string
+  readonly id: string
+  readonly network:Network
 
-    #hdNode: HDNode
+  #hdNode: HDNode
 
-    #addressIndex: number
+  #addressIndex: number
 
-    #wallets: Wallet[]
+  #wallets: Wallet[]
 
-    #addressToWallet: { [address: string]: Wallet }
+  #addressToWallet: { [address: string]: Wallet }
 
-    #mnemonic: string
-    readonly network: Network
+  #mnemonic: string
 
-    // constructor that builds hdkeyring on init
-    constructor(options: Options = {}) {
-        const hdOptions: Required<Options> = {
-            ...defaultOptions,
-            ...options,
-        }
-
-        const mnemonic = validateAndFormatMnemonic(
-            hdOptions.mnemonic || bip.generateMnemonic(hdOptions.strength)
-        )
-      
-    
-
-        if (!mnemonic) {
-            throw new Error("Invalid mnemonic.")
-        }
-
-        this.#mnemonic = mnemonic
-        this.network = NetworkFromTicker(hdOptions.networkTicker)
-        this.path = hdOptions.path
-        this.#hdNode = HDNode.fromMnemonic(mnemonic, undefined, "en").derivePath(
-            this.path
-        )
-        this.id = this.#hdNode.fingerprint
-        this.#addressIndex = 0
-        this.#wallets = []
-        this.#addressToWallet = {}
+  constructor(options: Options = {}) {
+    const hdOptions: Required<Options> = {
+      ...defaultOptions,
+      ...options,
     }
 
-    serializeSync(): SerializedHDKeyring {
-        return {
-            version: 1,
-            id: this.id,
-            mnemonic: this.#mnemonic,
-            keyringType: HDKeyring.type,
-            path: this.path,
-            addressIndex: this.#addressIndex,
-            networkTicker: this.network.ticker
-        }
+    const mnemonic = validateAndFormatMnemonic(
+      hdOptions.mnemonic || generateMnemonic(hdOptions.strength)
+    )
+
+    if (!mnemonic) {
+      throw new Error("Invalid mnemonic.")
     }
 
-    async serialize(): Promise<SerializedHDKeyring> {
-        return this.serializeSync()
+    this.#mnemonic = mnemonic
+
+    const passphrase = hdOptions.passphrase ?? ""
+
+    this.path = hdOptions.path
+    this.#hdNode = HDNode.fromMnemonic(mnemonic, passphrase, "en").derivePath(
+      this.path
+    )
+    this.id = this.#hdNode.fingerprint
+    this.#addressIndex = 0
+    this.#wallets = []
+    this.#addressToWallet = {}
+    this.network = NetworkFromTicker(hdOptions.networkTicker)
+  }
+
+  serializeSync(): SerializedHDKeyring {
+    return {
+      version: 1,
+      id: this.id,
+      mnemonic: this.#mnemonic,
+      keyringType: HDKeyring.type,
+      path: this.path,
+      addressIndex: this.#addressIndex,
+      networkTicker: this.network.ticker
+    }
+  }
+
+  async serialize(): Promise<SerializedHDKeyring> {
+    return this.serializeSync()
+  }
+
+  static deserialize(obj: SerializedHDKeyring, passphrase?: string): HDKeyring {
+    const { version, keyringType, mnemonic, path, addressIndex, networkTicker } = obj
+    if (version !== 1) {
+      throw new Error(`Unknown serialization version ${obj.version}`)
     }
 
-    static deserialize(obj: SerializedHDKeyring): HDKeyring {
-        const { version, keyringType, mnemonic, path, addressIndex, networkTicker } = obj
-        if (version !== 1) {
-            throw new Error(`Unknown serialization version ${obj.version}`)
-        }
-
-        if (keyringType !== HDKeyring.type) {
-            throw new Error("HDKeyring only supports BIP-32/44 style HD wallets.")
-        }
-    
-        const keyring = new HDKeyring({
-            mnemonic,
-            path,
-            networkTicker
-        })
-
-        keyring.addAddressesSync(addressIndex)
-
-        return keyring
+    if (keyringType !== HDKeyring.type) {
+      throw new Error("HDKeyring only supports BIP-32/44 style HD wallets.")
     }
 
-    async signTransaction(
-        address: string,
-        transaction: TransactionRequest
-    ): Promise<string> {
-        const normAddress = normalizeHexAddress(address)
-        if (!this.#addressToWallet[normAddress]) {
-            throw new Error("Address not found!")
-        }
-        return this.#addressToWallet[normAddress].signTransaction(transaction)
+    const keyring = new HDKeyring({
+      mnemonic,
+      path,
+      passphrase,
+      networkTicker
+    })
+
+    keyring.addAddressesSync(addressIndex)
+
+    return keyring
+  }
+
+  async signTransaction(
+    address: string,
+    transaction: TransactionRequest
+  ): Promise<string> {
+    const normAddress = normalizeHexAddress(address)
+    if (!this.#addressToWallet[normAddress]) {
+      throw new Error("Address not found!")
+    }
+    return this.#addressToWallet[normAddress].signTransaction(transaction)
+  }
+
+  async signTypedData(
+    address: string,
+    domain: TypedDataDomain,
+    types: Record<string, Array<TypedDataField>>,
+    value: Record<string, unknown>
+  ): Promise<string> {
+    const normAddress = normalizeHexAddress(address)
+    if (!this.#addressToWallet[normAddress]) {
+      throw new Error("Address not found!")
+    }
+    // eslint-disable-next-line no-underscore-dangle
+    return this.#addressToWallet[normAddress]._signTypedData(
+      domain,
+      types,
+      value
+    )
+  }
+
+  async signMessage(address: string, message: string): Promise<string> {
+    const normAddress = normalizeHexAddress(address)
+    if (!this.#addressToWallet[normAddress]) {
+      throw new Error("Address not found!")
+    }
+    return this.#addressToWallet[normAddress].signMessage(message)
+  }
+
+  addAddressesSync(numNewAccounts = 1): string[] {
+    const numAddresses = this.#addressIndex
+
+    if (numNewAccounts < 0 || numAddresses + numNewAccounts > 2 ** 31 - 1) {
+      throw new Error("New account index out of range")
     }
 
-    async signTypedData(
-        address: string,
-        domain: TypedDataDomain,
-        types: Record<string, Array<TypedDataField>>,
-        value: Record<string, unknown>
-    ): Promise<string> {
-        const normAddress = normalizeHexAddress(address)
-        if (!this.#addressToWallet[normAddress]) {
-            throw new Error("Address not found!")
-        }
-        // eslint-disable-next-line no-underscore-dangle
-        return this.#addressToWallet[normAddress]._signTypedData(
-            domain,
-            types,
-            value
-        )
+    for (let i = 0; i < numNewAccounts; i += 1) {
+      this.#deriveChildWallet(i + numAddresses)
     }
 
-    async signMessage(address: string, message: string): Promise<string> {
-        const normAddress = normalizeHexAddress(address)
-        if (!this.#addressToWallet[normAddress]) {
-            throw new Error("Address not found!")
-        }
-        return this.#addressToWallet[normAddress].signMessage(message)
-    }
+    this.#addressIndex += numNewAccounts
+    const addresses = this.getAddressesSync()
+    return addresses.slice(-numNewAccounts)
+  }
 
-    addAddressesSync(numNewAccounts = 1): string[] {
-        // number of addresses already on keyring
-        const numAddresses = this.#addressIndex
+  async addAddresses(numNewAccounts = 1): Promise<string[]> {
+    return this.addAddressesSync(numNewAccounts)
+  }
 
-        for (let i = 0; i < numNewAccounts; i += 1) {
-            this.#deriveChildWallet(i + numAddresses)
-        }
+  #deriveChildWallet(index: number): void {
+    const newPath = `${index}`
 
-        this.#addressIndex += numNewAccounts
-        // get all addresses
-        const addresses = this.getAddressesSync()
-        // slice...only return newest
-        return addresses.slice(-numNewAccounts)
-    }
+    const childNode = this.#hdNode.derivePath(newPath)
+    const wallet = new Wallet(childNode.privateKey)
 
-    async addAddresses(numNewAccounts = 1): Promise<string[]> {
-        return this.addAddressesSync(numNewAccounts)
-    }
+    this.#wallets.push(wallet)
+    const address = normalizeHexAddress(wallet.address)
+    this.#addressToWallet[address] = wallet
+  }
 
-    #deriveChildWallet(index: number): void {
-        const newPath = `${index}`
-        // derive new child node based on new path
-        const childNode = this.#hdNode.derivePath(newPath)
-        const wallet = new Wallet(childNode)
+  getAddressesSync(): string[] {
+    return this.#wallets.map((w) => normalizeHexAddress(w.address))
+  }
 
-        this.#wallets.push(wallet)
-        const address = normalizeHexAddress(wallet.address)
-        this.#addressToWallet[address] = wallet
-    }
-
-    getAddressesSync(): string[] {
-        this.#wallets[0].getAddress()
-        return this.#wallets.map((w) => normalizeHexAddress(w.address))
-    }
-
-    async getAddresses(): Promise<string[]> {
-        return this.getAddressesSync()
-    }
+  async getAddresses(): Promise<string[]> {
+    return this.getAddressesSync()
+  }
 }
