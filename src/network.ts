@@ -41,7 +41,7 @@ export class Network implements HDCoin {
     readonly fullName: string
     readonly ticker: string
     // base path used for hdnode derivation
-    readonly path?: string
+    readonly path: string
     // BIP-44 coin code
     readonly chainId: number
 
@@ -58,8 +58,8 @@ export class Network implements HDCoin {
 
     // builds coin path based on BIP-44 standard
     getPath(): string{
-        let coinType = NetworkInfoDict[this.ticker];
-        let path = `m/44'/${coinType}'/0'/0`;
+        let networkInfo:NewtorkInfo = NetworkInfoDict[this.ticker];
+        let path = `m/44'/${networkInfo.chainCode}'/0'/0`;
         return path;
     }
     
@@ -84,5 +84,10 @@ defaultNetworks.near = new Network("Near", "near")
 
 // return chain that matches ticker
 export function NetworkFromTicker(ticker: string): Network{
-    return defaultNetworks[ticker]
+    try{
+        return defaultNetworks[ticker.toLowerCase()]
+    }
+    catch(err){
+        throw(Error(`Unable to find network for ticker: ${ticker}`))
+    }
 }
