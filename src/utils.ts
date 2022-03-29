@@ -1,22 +1,6 @@
 import { keccak256 } from "@ethersproject/keccak256"
 import * as bip from "bip39"
 
-export type Options = {
-    strength?: number
-    path?: string
-    mnemonic?: string | null
-    networkTicker?: string
-    isCreation?: boolean
-}
-
-export const defaultOptions = {
-    // default path is BIP-44 ethereum coin type, where depth 5 is the address index
-    path: "m/44'/60'/0'/0",
-    strength: 128,
-    mnemonic: null,
-    networkTicker: "Eth",
-    isCreation: true
-}
 
 export function normalizeMnemonic(mnemonic: string): string {
     return mnemonic.trim().toLowerCase().replace(/\r/, " ").replace(/ +/, " ")
