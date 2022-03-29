@@ -52,7 +52,7 @@ const validDerivations = [
   },
 ]
 
-// const testPassphrases = ["super_secret", "1234"]
+const testPassphrases = ["super_secret", "1234"]
 
 const twelveOrMoreWordMnemonics = validMnemonics.filter(
   (m) => m.split(" ").length >= 12
@@ -75,14 +75,14 @@ describe("HDKeyring", () => {
     expect(keyring.id).toBeTruthy()
     expect(keyring.id.length).toBeGreaterThan(9)
   })
-//   it("can be constructed with a mnemonic and passphrase", () => {
-//     const keyring = new HDKeyring({
-//       mnemonic: validMnemonics[0],
-//       passphrase: testPassphrases[0],
-//     })
-//     expect(keyring.id).toBeTruthy()
-//     expect(keyring.id.length).toBeGreaterThan(9)
-//   })
+  it("can be constructed with a mnemonic and passphrase", () => {
+    const keyring = new HDKeyring({
+      mnemonic: validMnemonics[0],
+      passphrase: testPassphrases[0],
+    })
+    expect(keyring.id).toBeTruthy()
+    expect(keyring.id.length).toBeGreaterThan(9)
+  })
   it("cannot be constructed with an invalid mnemonic", () => {
     underTwelveWorkMnemonics.forEach((m) =>
       expect(() => new HDKeyring({ mnemonic: m })).toThrowError()
@@ -107,6 +107,237 @@ describe("HDKeyring", () => {
         const deserialized = HDKeyring.deserialize(serialized)
 
         expect(id1).toBe(deserialized.id)
+      })
+    )
+  })
+  it("deserializes with passphrase after serializing", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({
+          mnemonic: m,
+          passphrase: testPassphrases[0],
+        })
+        const id1 = keyring.id
+
+        const serialized = await keyring.serialize()
+        const deserialized = HDKeyring.deserialize(
+          serialized,
+          testPassphrases[0]
+        )
+
+        expect(id1).toBe(deserialized.id)
+      })
+    )
+  })
+  it("fails to deserialize different versions", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+        const serialized = await keyring.serialize()
+        serialized.version = 2
+        expect(() => HDKeyring.deserialize(serialized)).toThrowError()
+      })
+    )
+  })
+  it("generates the same IDs from the same mnemonic", async () => {
+    twelveOrMoreWordMnemonics.forEach((m) => {
+      const keyring1 = new HDKeyring({ mnemonic: m })
+      const keyring2 = new HDKeyring({ mnemonic: m })
+
+      expect(keyring1.id).toBe(keyring2.id)
+    })
+  })
+  it("generates a different ID from the same mnemonic with a passphrase", async () => {
+    twelveOrMoreWordMnemonics.forEach((m) => {
+      const keyring1 = new HDKeyring({ mnemonic: m })
+      const keyring2 = new HDKeyring({
+        mnemonic: m,
+        passphrase: testPassphrases[0],
+      })
+
+      expect(keyring1.id).not.toBe(keyring2.id)
+    })
+  })
+  it("generates distinct addresses", async () => {
+    const allAddresses: string[] = []
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+
+        await keyring.addAddresses(10)
+
+        const addresses = await keyring.getAddresses()
+        expect(addresses.length).toEqual(10)
+        expect(new Set(addresses).size).toEqual(10)
+
+        allAddresses.concat(addresses)
+      })
+    )
+    expect(new Set(allAddresses).size).toEqual(allAddresses.length)
+  })
+  it("fails to generate out-of-bounds addresses", async () => {
+    const addressBounds0 = await Promise.allSettled(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+
+        // Add negatives, should always fail.
+        await keyring.addAddresses(-Math.random() * 10 - 1)
+      })
+    )
+
+    const addressBoundsMax = await Promise.allSettled(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+
+        await keyring.addAddresses(2 ** 31)
+      })
+    )
+
+    const addressBoundsMaxSplit = await Promise.allSettled(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+
+        // Adding more than order-of-10 addresses can get so slow it kills test
+        // time, thus the small first and second splits.
+        const firstSplit = Math.floor(Math.random() * 10)
+        const secondSplit = Math.floor(Math.random() * 10)
+        const remaining = 2 ** 31 - firstSplit
+
+        await keyring.addAddresses(firstSplit)
+        await keyring.addAddresses(secondSplit)
+        await keyring.addAddresses(remaining)
+      })
+    )
+
+    expect(
+      [...addressBounds0, ...addressBoundsMax, ...addressBoundsMaxSplit]
+        .map(({ status }) => status)
+        .every((status) => status === "rejected")
+    ).toEqual(true)
+  })
+  it("generates addresses without off-by-one errors", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.slice(-1).map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+
+        await keyring.addAddresses(10)
+
+        const addresses = await keyring.getAddresses()
+        expect(addresses.length).toEqual(10)
+        expect(new Set(addresses).size).toEqual(10)
+
+        const keyring2 = new HDKeyring({ mnemonic: m })
+
+        for (let i = 0; i < 10; i += 1) {
+          keyring2.addAddressesSync()
+        }
+
+        const addresses2 = await keyring2.getAddresses()
+        expect(addresses2.length).toEqual(10)
+        expect(new Set(addresses2).size).toEqual(10)
+      })
+    )
+  })
+  it("generates and initializes the same first address from the same mnemonic", async () => {
+    await Promise.all(
+      validDerivations.map(async ({ mnemonic, addresses }) => {
+        const keyring = new HDKeyring({ mnemonic })
+
+        expect((await keyring.getAddresses()).length).toEqual(0)
+
+        keyring.addAddressesSync()
+
+        expect((await keyring.getAddresses()).length).toEqual(1)
+        expect(await keyring.getAddresses()).toStrictEqual([addresses[0]])
+      })
+    )
+  })
+  it("generates the same addresses from the same mnemonic", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring1 = new HDKeyring({ mnemonic: m })
+        const keyring2 = new HDKeyring({ mnemonic: m })
+
+        keyring1.addAddressesSync()
+        keyring2.addAddressesSync()
+
+        expect((await keyring1.getAddresses()).length).toBeGreaterThan(0)
+        expect((await keyring2.getAddresses()).length).toBeGreaterThan(0)
+
+        expect(await keyring1.getAddresses()).toStrictEqual(
+          await keyring2.getAddresses()
+        )
+      })
+    )
+  })
+  it("generates different addresses from the same mnemonic with different passphrases", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring1 = new HDKeyring({ mnemonic: m })
+        const keyring2 = new HDKeyring({
+          mnemonic: m,
+          passphrase: testPassphrases[0],
+        })
+        const keyring3 = new HDKeyring({
+          mnemonic: m,
+          passphrase: testPassphrases[1],
+        })
+
+        keyring1.addAddressesSync()
+        keyring2.addAddressesSync()
+        keyring3.addAddressesSync()
+
+        expect((await keyring1.getAddresses()).length).toBeGreaterThan(0)
+        expect((await keyring2.getAddresses()).length).toBeGreaterThan(0)
+        expect((await keyring3.getAddresses()).length).toBeGreaterThan(0)
+
+        expect(await keyring1.getAddresses()).not.toStrictEqual(
+          await keyring2.getAddresses()
+        )
+        expect(await keyring1.getAddresses()).not.toStrictEqual(
+          await keyring3.getAddresses()
+        )
+        expect(await keyring2.getAddresses()).not.toStrictEqual(
+          await keyring3.getAddresses()
+        )
+      })
+    )
+  })
+  it("derives the same addresses as legacy wallets", async () => {
+    await Promise.all(
+      validDerivations.map(async ({ mnemonic, addresses }) => {
+        const keyring = new HDKeyring({ mnemonic })
+        await keyring.addAddressesSync(10)
+        const newAddresses = keyring.getAddressesSync()
+        expect(newAddresses).toStrictEqual(addresses)
+      })
+    )
+  })
+  it("returns the correct addresses when generated 1 by 1", async () => {
+    await Promise.all(
+      validDerivations.slice(-1).map(async ({ mnemonic, addresses }) => {
+        const keyring = new HDKeyring({ mnemonic })
+        for (let i = 0; i < addresses.length; i += 1) {
+          const newAddresses = keyring.addAddressesSync()
+          expect(newAddresses.length).toEqual(1)
+          expect(newAddresses[0]).toStrictEqual(addresses[i])
+        }
+      })
+    )
+  })
+  it("signs messages recoverably", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const keyring = new HDKeyring({ mnemonic: m })
+
+        const addresses = await keyring.addAddresses(2)
+        addresses.forEach(async (address) => {
+          const message = "recoverThisMessage"
+          const sig = await keyring.signMessage(address, message)
+          expect(await verifyMessage(message, sig).toLowerCase()).toEqual(
+            address
+          )
+        })
       })
     )
   })
