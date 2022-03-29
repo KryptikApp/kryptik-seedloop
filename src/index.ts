@@ -2,8 +2,8 @@
 import * as bip from "bip39"
 import { Network, defaultNetworks } from "./network"
 import HDKeyring from "./keyring"
-import HDKeyRing, { SerializedHDKeyring } from "./keyring"
-import { validateAndFormatMnemonic, Options, defaultOptions } from "./utils"
+import HDKeyRing, { SerializedHDKeyring, Options, defaultOptions } from "./keyring"
+import { validateAndFormatMnemonic, } from "./utils"
 export {
     normalizeHexAddress,
     normalizeMnemonic
