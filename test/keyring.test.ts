@@ -355,7 +355,7 @@ describe("HDKeyring", () => {
             gasPrice: 300000,
             nonce: 300000,
           }
-          const signedTx = await keyring.signTransaction(address, tx)
+          const signedTx:any = await keyring.signTransaction(address, {evmTransaction:tx})
           const parsed = parse(signedTx)
           const sig = {
             r: parsed.r as string,
