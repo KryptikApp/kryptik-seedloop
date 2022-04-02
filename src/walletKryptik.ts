@@ -1,50 +1,102 @@
 import { Provider, TransactionRequest } from "@ethersproject/abstract-provider";
 import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
 import { Wallet } from "@ethersproject/wallet";
-import { BytesLike } from "@ethersproject/bytes";
+import { BytesLike, arrayify } from "@ethersproject/bytes";
 import { SigningKey } from "@ethersproject/signing-key";
-import { NetworkFamily } from "./models"
-import { NetworkInfo, NetworkInfoDict } from "./network"
+import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict } from "./network"
 import * as bitcoin from 'bitcoinjs-lib'
+import nacl from "tweetnacl";
+import * as ecc from 'tiny-secp256k1';
+import ECPairFactory from 'ecpair';
 
-class WalletKryptik extends Wallet{
-    // set default cointype... can also be set via the constructor
-    public readonly coinType:number = 60
+
+import { NetworkFamily } from "./models"
+
+
+
+export default class WalletKryptik extends Wallet{
+    // set default chainId... can also be set via the constructor
+    public readonly chainId:number = 60
     // wallet network family... set default as evm
     public networkFamily:NetworkFamily = NetworkFamily.EVM;
     
 
-    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, coinType?:number, provider?: Provider, networkFamily?:NetworkFamily) {
+    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, network?:Network, provider?: Provider) {
         super(privateKey, provider);
-        // if cointype is provided... set as wallet coin type
-        if(coinType!=null){
-            this.coinType = coinType
+        if(network==null){
+            network = defaultNetworks.eth
         }
-        if(networkFamily!=null){
-            this.networkFamily = networkFamily
+        let chainId = network.chainId;
+        // if chainId is provided... set as wallet coin type
+        if(chainId!=null){
+            this.chainId = chainId
         }
-        else{
-            this.getNetworkFamily(this.coinType)
-        }
-        if(networkFamily) this.networkFamily = networkFamily;
+        this.networkFamily = network.networkFamily;
         // sets address for wallet
         this.generateAddress(this.publicKey)
     }
 
     // sign tx.
-    signKryptikTransaction(evmTransaction?: TransactionRequest, btcTransaction?:bitcoin.Psbt, solTransaction?:string): Promise<string> {
-        if(this.networkFamily == NetworkFamily.EVM && evmTransaction){
-            // use default signer implemented by ethers wallet
-            return this.signTransaction(evmTransaction)
+    // TODO: add handling for range of types that can be returned... currently assuming this is handled by user of func.
+    signKryptikTransaction(evmTransaction?: TransactionRequest, btcTransaction?:bitcoin.Psbt, solTransactionBuffer?:Uint8Array): Promise<string|bitcoin.Psbt|Uint8Array> {
+        switch(this.networkFamily){
+            case NetworkFamily.EVM :{
+                // ensure evm tx. was passed in
+                if(!evmTransaction) throw Error("EVM transaction not provided.");
+                // use default signer implemented by ethers wallet
+                return this.signTransaction(evmTransaction)
+            }
+            case NetworkFamily.Bitcoin :{
+                // btcTransaction.signInput(0, pk)
+                // ensure btc tx. was passed in
+                if(!btcTransaction) throw Error("BTC transaction not provided.");
+                throw Error("Btc signatures not implemented yet.")
+            }
+            case NetworkFamily.Solana:{
+                // ensure sol tx. was passed in
+                if(!solTransactionBuffer) throw Error("Sol transaction not provided.");
+                return this.signSolMessage(solTransactionBuffer);
+            }
+            default:{
+                throw Error(`Network of type: ${this.chainId} signatures not yet supported.`)
+            }
         }
-        if(this.networkFamily == NetworkFamily.Bitcoin && btcTransaction){
-            // btcTransaction.signInput(0, pk)
-            
-        }
-        if(this.networkFamily == NetworkFamily.Solana && solTransaction){
-            //implement
-        }
-        throw Error(`Network of type: ${this.coinType} signatures not yet supported.`)
+    }
+
+    // signs btc family transaction
+    async signBtcTransaction(btcTransaction:bitcoin.Psbt){
+        const ECPair = ECPairFactory(ecc);
+        // transform privkey from string to buffer and array for crypto func.'s
+        let privKeyArray:Uint8Array = arrayify(this.privateKey);
+        let privKeyBuffer:Buffer = Buffer.from(privKeyArray)
+        // create eckey from privkey buffer
+        let ecKey = ECPair.fromPrivateKey(privKeyBuffer);
+        // sign btc transaction
+        btcTransaction.signInput(0, ecKey);
+        // create validator for btc transaction
+        const validator = (
+            pubkey: Buffer,
+            msghash: Buffer,
+            signature: Buffer,
+          ): boolean => ECPair.fromPublicKey(pubkey).verify(msghash, signature);
+        // validate signature 
+        btcTransaction.validateSignaturesOfInput(0, validator);
+        return btcTransaction;
+    }
+
+    // can sign data OR transaction!
+    async signSolMessage(solTransactionBuffer:Uint8Array):Promise<Uint8Array>{
+        // ensure wallet has associated pk
+        if(!this.privateKey) throw Error("No private key found when signing sol transaction. Ensure wallet has been properly instantiated.");
+        // create key buffers
+        let privKeyArray:Uint8Array = arrayify(this.privateKey);
+        let pubKeyArray:Uint8Array = arrayify(this.publicKey);
+        // create sol signature
+        let solSignature:Uint8Array = nacl.sign.detached(solTransactionBuffer, privKeyArray);
+        // verify signature
+        let solSigVerified:Boolean = nacl.sign.detached.verify(solTransactionBuffer, solSignature, pubKeyArray)
+        if(!solSigVerified) throw Error("Sol signature verification failed");
+        return solSignature;
     }
 
 
@@ -62,7 +114,7 @@ class WalletKryptik extends Wallet{
         if(this.networkFamily == NetworkFamily.Solana){
             return this.generateSolanaFamilyAddress(publicKey);
         }
-        throw(Error(`Unable to generate address for wallet with network type: ${this.coinType}`));
+        throw(Error(`Unable to generate address for wallet with network type: ${this.chainId}`));
     }
 
     // returns address for coins in the solana family
@@ -70,6 +122,7 @@ class WalletKryptik extends Wallet{
         return pubKey;
     }
 
+    // generates address for networks within the bitcoin family
     generateBitcoinFamilyAddress(pubKey:string):string{
         const LITECOIN = {
             messagePrefix: '\x19Litecoin Signed Message:\n',
@@ -82,8 +135,20 @@ class WalletKryptik extends Wallet{
             scriptHash: 0x32,
             wif: 0xb0,
         };
+        const DOGECOIN = {
+            messagePrefix: '\x19Dogecoin Signed Message:\n',
+            bech32: 'doge',
+            bip32: {
+              public: 0x02FACAFD,
+              private: 0x02FAC398,
+            },
+            pubKeyHash: 0x1E,
+            //TODO: fix script and wif bytes
+            scriptHash: 0x32,
+            wif: 0xb0,
+        }
         let addressToreturn:string = "";
-        switch(this.coinType){
+        switch(this.chainId){
             case 0:{
                 const { address } = bitcoin.payments.p2pkh({ pubkey: Buffer.from(pubKey, 'hex') });
                 if(address) return addressToreturn;
@@ -94,19 +159,24 @@ class WalletKryptik extends Wallet{
                 if(address) return addressToreturn;
                 break;
             }
+            case 3:{
+                const { address } = bitcoin.payments.p2pkh({ pubkey: Buffer.from(pubKey, 'hex') , network:DOGECOIN});
+                if(address) return addressToreturn;
+                break;
+            }
             default:{
-                throw(Error(`Error: coin type ${this.coinType} is not specified within the bitcoin network family.`));   
+                throw(Error(`Error: coin type ${this.chainId} is not specified within the bitcoin network family.`));   
             }
         }
         return addressToreturn;
     }
 
     // returns chain family
-    getNetworkFamily = function(chainCode:number):NetworkFamily{
+    getNetworkFamily = function(chainId:number):NetworkFamily{
         for (let ticker in NetworkInfoDict) {
             let NetworkInfo:NetworkInfo = NetworkInfoDict[ticker];
-            // match chainCode
-            if(NetworkInfo.chainCode == chainCode){
+            // match chainId
+            if(NetworkInfo.chainCode == chainId){
                 return NetworkInfo.networkFamily
             }
         }
