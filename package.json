@@ -38,7 +38,11 @@
     "@ethersproject/hdnode": "^5.4.0",
     "@ethersproject/keccak256": "^5.4.0",
     "@ethersproject/wallet": "5.4.0",
+    "@solana/web3.js": "^1.37.0",
     "bip39": "^3.0.4",
-    "bitcoinjs-lib": "^6.0.1"
+    "bitcoinjs-lib": "^6.0.1",
+    "ecpair": "^2.0.1",
+    "tiny-secp256k1": "^2.2.1",
+    "tweetnacl": "^1.0.3"
   }
 }
