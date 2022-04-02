@@ -12,7 +12,11 @@ import ECPairFactory from 'ecpair';
 
 import { NetworkFamily } from "./models"
 
-
+export interface TransactionParameters{
+    evmTransaction?:TransactionRequest,
+    btcTransaction?:bitcoin.Psbt,
+    solTransactionBuffer?:Uint8Array
+}
 
 export default class WalletKryptik extends Wallet{
     // set default chainId... can also be set via the constructor
@@ -36,26 +40,28 @@ export default class WalletKryptik extends Wallet{
         this.generateAddress(this.publicKey)
     }
 
+
+
     // sign tx.
     // TODO: add handling for range of types that can be returned... currently assuming this is handled by user of func.
-    signKryptikTransaction(evmTransaction?: TransactionRequest, btcTransaction?:bitcoin.Psbt, solTransactionBuffer?:Uint8Array): Promise<string|bitcoin.Psbt|Uint8Array> {
+    signKryptikTransaction(txParams:TransactionParameters): Promise<string|bitcoin.Psbt|Uint8Array> {
         switch(this.networkFamily){
             case NetworkFamily.EVM :{
                 // ensure evm tx. was passed in
-                if(!evmTransaction) throw Error("EVM transaction not provided.");
+                if(!txParams.evmTransaction) throw Error("EVM transaction not provided.");
                 // use default signer implemented by ethers wallet
-                return this.signTransaction(evmTransaction)
+                return this.signTransaction(txParams.evmTransaction)
             }
             case NetworkFamily.Bitcoin :{
                 // btcTransaction.signInput(0, pk)
                 // ensure btc tx. was passed in
-                if(!btcTransaction) throw Error("BTC transaction not provided.");
+                if(!txParams.btcTransaction) throw Error("BTC transaction not provided.");
                 throw Error("Btc signatures not implemented yet.")
             }
             case NetworkFamily.Solana:{
                 // ensure sol tx. was passed in
-                if(!solTransactionBuffer) throw Error("Sol transaction not provided.");
-                return this.signSolMessage(solTransactionBuffer);
+                if(!txParams.solTransactionBuffer) throw Error("Sol transaction not provided.");
+                return this.signSolMessage(txParams.solTransactionBuffer);
             }
             default:{
                 throw Error(`Network of type: ${this.chainId} signatures not yet supported.`)
