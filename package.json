@@ -16,9 +16,9 @@
     "size": "size-limit",
     "analyze": "size-limit --why"
   },
-    "moduleDirectories": [
-      "node_modules",
-      "src"
+  "moduleDirectories": [
+    "node_modules",
+    "src"
   ],
   "devDependencies": {
     "@ethersproject/transactions": "^5.4.0",
@@ -38,6 +38,7 @@
     "@ethersproject/hdnode": "^5.4.0",
     "@ethersproject/keccak256": "^5.4.0",
     "@ethersproject/wallet": "5.4.0",
-    "bip39": "^3.0.4"
+    "bip39": "^3.0.4",
+    "bitcoinjs-lib": "^6.0.1"
   }
 }
