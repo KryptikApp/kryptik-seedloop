@@ -1,7 +1,7 @@
 import { NetworkFamily } from "./models"
 
 
-export class NewtorkInfo{
+export class NetworkInfo{
     public chainCode:number
     public networkFamily: NetworkFamily
     constructor(chainCode:number, networkFamily:NetworkFamily){
@@ -11,20 +11,20 @@ export class NewtorkInfo{
 }
 
 // SLIP-0044 specified coin types
-export let NetworkInfoDict:{[name: string]: NewtorkInfo}  = {
-    btc: new NewtorkInfo(0, NetworkFamily.Bitcoin), 
-    ltc: new NewtorkInfo(2, NetworkFamily.Bitcoin), 
-    doge: new NewtorkInfo(3, NetworkFamily.Bitcoin), 
-    eth: new NewtorkInfo(60, NetworkFamily.EVM), 
-    xmr: new NewtorkInfo(128, NetworkFamily.Bitcoin),
-    zec: new NewtorkInfo(133, NetworkFamily.Bitcoin), 
-    bch: new NewtorkInfo(145, NetworkFamily.Bitcoin), 
-    sol: new NewtorkInfo(145, NetworkFamily.Solana), 
-    near: new NewtorkInfo(397, NetworkFamily.EVM), 
-    pokt: new NewtorkInfo(635, NetworkFamily.EVM), 
-    bnb: new NewtorkInfo(714, NetworkFamily.EVM), 
-    avaxc: new NewtorkInfo(9005, NetworkFamily.Solana), 
-    one: new NewtorkInfo(1023, NetworkFamily.Bitcoin)
+export let NetworkInfoDict:{[name: string]: NetworkInfo}  = {
+    btc: new NetworkInfo(0, NetworkFamily.Bitcoin), 
+    ltc: new NetworkInfo(2, NetworkFamily.Bitcoin), 
+    doge: new NetworkInfo(3, NetworkFamily.Bitcoin), 
+    eth: new NetworkInfo(60, NetworkFamily.EVM), 
+    xmr: new NetworkInfo(128, NetworkFamily.Bitcoin),
+    zec: new NetworkInfo(133, NetworkFamily.Bitcoin), 
+    bch: new NetworkInfo(145, NetworkFamily.Bitcoin), 
+    sol: new NetworkInfo(145, NetworkFamily.Solana), 
+    near: new NetworkInfo(397, NetworkFamily.EVM), 
+    pokt: new NetworkInfo(635, NetworkFamily.EVM), 
+    bnb: new NetworkInfo(714, NetworkFamily.EVM), 
+    avaxc: new NetworkInfo(9005, NetworkFamily.Solana), 
+    one: new NetworkInfo(1023, NetworkFamily.Bitcoin)
 };
 
 
@@ -44,6 +44,7 @@ export class Network implements HDCoin {
     readonly path: string
     // BIP-44 coin code
     readonly chainId: number
+    readonly networkFamily:number
 
     constructor(fullName: string, ticker: string) {
         this.fullName = fullName
@@ -54,13 +55,21 @@ export class Network implements HDCoin {
         }
         this.path = this.getPath();
         this.chainId = this.getChainId();
+        this.networkFamily = this.getNetworkfamily();
     }
 
     // builds coin path based on BIP-44 standard
     getPath(): string{
-        let networkInfo:NewtorkInfo = NetworkInfoDict[this.ticker];
+        let networkInfo:NetworkInfo = NetworkInfoDict[this.ticker];
         let path = `m/44'/${networkInfo.chainCode}'/0'/0`;
         return path;
+    }
+
+    // returns network family for given chain
+    getNetworkfamily(): number{
+        let networkInfo:NetworkInfo = NetworkInfoDict[this.ticker];
+        let networkFamily:NetworkFamily = networkInfo.networkFamily;
+        return networkFamily;
     }
     
     // returns BIP-44 specified coin type (code)
