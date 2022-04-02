@@ -1,13 +1,13 @@
-import { TransactionRequest } from "@ethersproject/abstract-provider"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import { HDNode } from "@ethersproject/hdnode"
-import { Wallet } from "@ethersproject/wallet"
-
+import * as bitcoin from 'bitcoinjs-lib'
 import { generateMnemonic } from "bip39"
 import { Network, NetworkFromTicker } from "./network"
 
+
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
-import WalletKryptik from "./walletKryptik"
+import WalletKryptik, { TransactionParameters } from "./walletKryptik"
+import { NetworkFamily } from "./models"
 
 export {
   normalizeHexAddress,
@@ -24,6 +24,7 @@ export type Options = {
     networkTicker?: string
     isCreation?: boolean
     passphrase?: string|null
+    parentNode?: HDNode|null
 }
 
 export const defaultOptions = {
@@ -33,7 +34,8 @@ export const defaultOptions = {
   mnemonic: null,
   networkTicker: "Eth",
   passphrase: null,
-  isCreation: true
+  isCreation: true,
+  parentNode:null
 }
 
 
@@ -55,8 +57,8 @@ export interface Keyring<T> {
   addAddresses(n?: number): Promise<string[]>
   signTransaction(
     address: string,
-    transaction: TransactionRequest
-  ): Promise<string>
+    transaction: TransactionParameters
+  ): Promise<string|bitcoin.Psbt|Uint8Array>
   signTypedData(
     address: string,
     domain: TypedDataDomain,
@@ -85,7 +87,7 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
 
   #wallets: WalletKryptik[]
 
-  #addressToWallet: { [address: string]: Wallet }
+  #addressToWallet: { [address: string]: WalletKryptik}
 
   #mnemonic: string
 
@@ -108,7 +110,17 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
     const passphrase = hdOptions.passphrase ?? ""
 
     this.path = hdOptions.path
-    this.#hdNode = HDNode.fromMnemonic(mnemonic, passphrase, "en").derivePath(
+
+    let parentNode:HDNode;
+    if(hdOptions.parentNode){
+      parentNode = hdOptions.parentNode;
+    }
+    else{
+      parentNode = HDNode.fromMnemonic(mnemonic, passphrase, "en");
+    }
+    
+
+    this.#hdNode = parentNode.derivePath(
       this.path
     )
     this.id = this.#hdNode.fingerprint
@@ -156,15 +168,35 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
     return keyring
   }
 
+
+  // TODO: update for utxo based blockchains which may need to lump tx.s to different addresses into one tx.
   async signTransaction(
     address: string,
-    transaction: TransactionRequest
-  ): Promise<string> {
+    transaction:TransactionParameters
+  ): Promise<string|bitcoin.Psbt|Uint8Array> {
     const normAddress = normalizeHexAddress(address)
     if (!this.#addressToWallet[normAddress]) {
       throw new Error("Address not found!")
     }
-    return this.#addressToWallet[normAddress].signTransaction(transaction)
+    // catch invalid transaction params and the sign
+    switch(this.network.networkFamily){
+      case NetworkFamily.EVM:{
+        if(!transaction.evmTransaction) throw Error("No EVM transaction passed to sign.");
+        return this.#addressToWallet[normAddress].signKryptikTransaction(transaction)
+      }
+      case NetworkFamily.Bitcoin:{
+        if(!transaction.btcTransaction) throw Error("No BTC transaction passed to sign.");
+        return this.#addressToWallet[normAddress].signKryptikTransaction(transaction)
+      }
+      case NetworkFamily.Solana:{
+        if(!transaction.solTransactionBuffer) throw Error("No Solana transaction passed to sign.");
+        return this.#addressToWallet[normAddress].signKryptikTransaction(transaction)
+      }
+      default:{
+        throw Error(`Network with chain id: ${this.network.chainId} not yet supported for transaction signatures.`)
+      }
+    }
+    
   }
 
   async signTypedData(
@@ -193,7 +225,7 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
     return this.#addressToWallet[normAddress].signMessage(message)
   }
 
-  // update to add addresses with balances when importing seed
+  // TODO: update to add addresses with balances when importing seed
   addAddressesSync(numNewAccounts = 1): string[] {
     const numAddresses = this.#addressIndex
 
@@ -231,4 +263,6 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
   async getAddresses(): Promise<string[]> {
     return this.getAddressesSync()
   }
+
+  
 }
