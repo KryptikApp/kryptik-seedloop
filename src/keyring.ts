@@ -7,6 +7,7 @@ import { generateMnemonic } from "bip39"
 import { Network, NetworkFromTicker } from "./network"
 
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
+import WalletKryptik from "./walletKryptik"
 
 export {
   normalizeHexAddress,
@@ -82,7 +83,7 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
 
   #addressIndex: number
 
-  #wallets: Wallet[]
+  #wallets: WalletKryptik[]
 
   #addressToWallet: { [address: string]: Wallet }
 
@@ -192,6 +193,7 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
     return this.#addressToWallet[normAddress].signMessage(message)
   }
 
+  // update to add addresses with balances when importing seed
   addAddressesSync(numNewAccounts = 1): string[] {
     const numAddresses = this.#addressIndex
 
@@ -216,11 +218,10 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
     const newPath = `${index}`
 
     const childNode = this.#hdNode.derivePath(newPath)
-    const wallet = new Wallet(childNode.privateKey)
-
-    this.#wallets.push(wallet)
-    const address = normalizeHexAddress(wallet.address)
-    this.#addressToWallet[address] = wallet
+    const walletKryptik = new WalletKryptik(childNode.privateKey, )
+    this.#wallets.push(walletKryptik)
+    const address = normalizeHexAddress(walletKryptik.address)
+    this.#addressToWallet[address] = walletKryptik
   }
 
   getAddressesSync(): string[] {
