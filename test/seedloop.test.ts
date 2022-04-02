@@ -9,6 +9,15 @@ const validMnemonics = [
   "mad such absent minor vapor edge tornado wrestle convince shy battle region adapt order finish foot follow monitor",
 ]
 
+const testPassphrases = ["super_secret", "1234"]
+const twelveOrMoreWordMnemonics = validMnemonics.filter(
+  (m) => m.split(" ").length >= 12
+)
+
+const underTwelveWorkMnemonics = validMnemonics.filter(
+  (m) => m.split(" ").length < 12
+)
+
 describe("SeedLoop", () => {
     it("Creates a defined seedlopp", ()=>{
       const seedLoop = new HDSeedLoop()
@@ -30,5 +39,40 @@ describe("SeedLoop", () => {
             expect(keyRing.id).toBeTruthy()
             expect(keyRing.id.length).toBeGreaterThan(9)
         });
+      })
+      it("can be constructed with a mnemonic and passphrase", () => {
+        const seedLoop = new HDSeedLoop({
+          mnemonic: validMnemonics[0],
+          passphrase: testPassphrases[0],
+        })
+        expect(seedLoop.id).toBeTruthy()
+        expect(seedLoop.id.length).toBeGreaterThan(9)
+      })
+      it("cannot be constructed with an invalid mnemonic", () => {
+        underTwelveWorkMnemonics.forEach((m) =>
+          expect(() => new HDSeedLoop({ mnemonic: m })).toThrowError()
+        )
+      })
+      it("serializes its mnemonic", async () => {
+        await Promise.all(
+          twelveOrMoreWordMnemonics.map(async (m) => {
+            const seedLoop = new HDSeedLoop({ mnemonic: m })
+            const serialized = await seedLoop.serialize()
+            expect(serialized.mnemonic).toBe(m)
+          })
+        )
+      })
+      it("deserializes after serializing", async () => {
+        await Promise.all(
+          twelveOrMoreWordMnemonics.map(async (m) => {
+            const seedLoop = new HDSeedLoop({ mnemonic: m })
+            const id1 = seedLoop.id
+    
+            const serialized = await seedLoop.serialize()
+            const deserialized = seedLoop.deserialize(serialized)
+    
+            expect(id1).toBe(deserialized.id)
+          })
+        )
       })
 });
