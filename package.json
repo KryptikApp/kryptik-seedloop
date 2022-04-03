@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "kryptik-seedloop",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "A public, private key manager for cross chain assets.",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
