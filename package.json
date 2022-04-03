@@ -1,10 +1,18 @@
 {
+  "type": "commonjs",
   "name": "kryptik-seedloop",
-  "version": "1.0.0",
+  "version": "1.1.2",
   "description": "A public, private key manager for cross chain assets.",
-  "main": "index.ts",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
+  "keywords": [
+    "hd",
+    "key",
+    "manager",
+    "crypto"
+  ],
   "license": "Apache-2.0",
   "scripts": {
     "start": "dts watch",
@@ -22,7 +30,6 @@
   ],
   "devDependencies": {
     "@ethersproject/transactions": "^5.4.0",
-    "@size-limit/preset-small-lib": "^5.0.3",
     "@thesis-co/eslint-config": "^0.1.0",
     "@typescript-eslint/eslint-plugin": "^4.29.3",
     "@typescript-eslint/parser": "^4.29.3",
@@ -41,8 +48,6 @@
     "@solana/web3.js": "^1.37.0",
     "bip39": "^3.0.4",
     "bitcoinjs-lib": "^6.0.1",
-    "ecpair": "^2.0.1",
-    "tiny-secp256k1": "^2.2.1",
     "tweetnacl": "^1.0.3"
   }
 }
