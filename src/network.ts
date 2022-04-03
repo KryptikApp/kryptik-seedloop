@@ -88,7 +88,7 @@ defaultNetworks.sol =  new Network("Solana", "sol")
 defaultNetworks.avaxc = new Network("Avalanche C Chain",  "avaxc")
 defaultNetworks.doge = new Network("Dogecoin", "doge")
 defaultNetworks.near = new Network("Near", "near")
-
+defaultNetworks.bnb = new Network("Binance", "bnb")
 
 
 // return chain that matches ticker
