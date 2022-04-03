@@ -1,10 +1,8 @@
 {
   "type": "module",
   "name": "kryptik-seedloop",
-  "version": "1.1.9",
+  "version": "1.2.0",
   "description": "A public, private key manager for cross chain assets.",
-  "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
   "keywords": [
@@ -14,15 +12,41 @@
     "crypto"
   ],
   "license": "Apache-2.0",
-  "scripts": {
-    "test": "dts test",
-    "build": "webpack --mode=development --watch",
-    "release": "webpack --mode=production",
-    "argo": "webpack --mode=development"
-  },
-  "moduleDirectories": [
-    "node_modules",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist",
     "src"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "start": "dts watch",
+    "build": "dts build",
+    "test": "dts test",
+    "lint": "eslint . --ext ts",
+    "lint:fix": "eslint . --fix --ext ts",
+    "prepare": "dts build",
+    "size": "size-limit",
+    "analyze": "size-limit --why"
+  },
+  "peerDependencies": {},
+  "husky": {
+    "hooks": {
+      "pre-commit": "dts lint"
+    }
+  },
+  "module": "dist/kryptik-seedloop.esm.js",
+  "size-limit": [
+    {
+      "path": "dist/kryptik-seedloop.cjs.production.min.js",
+      "limit": "250 KB"
+    },
+    {
+      "path": "dist/kryptik-seedloop.esm.js",
+      "limit": "250 KB"
+    }
   ],
   "devDependencies": {
     "@ethersproject/transactions": "^5.4.0",
