@@ -3,6 +3,7 @@ import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
 import { Wallet } from "@ethersproject/wallet";
 import { BytesLike, arrayify } from "@ethersproject/bytes";
 import { SigningKey } from "@ethersproject/signing-key";
+import { Keypair} from '@solana/web3.js';
 import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict } from "./network"
 import * as bitcoin from 'bitcoinjs-lib'
 import nacl from "tweetnacl";
@@ -37,7 +38,7 @@ export default class WalletKryptik extends Wallet{
         }
         this.networkFamily = network.networkFamily;
         // sets address for wallet
-        this.generateAddress(this.publicKey)
+        this.generateAddress(this.publicKey, this.privateKey)
     }
 
 
@@ -109,7 +110,7 @@ export default class WalletKryptik extends Wallet{
 
     // if coin type is of ethereum family... just use default ethers implementation
     // else... create and set address
-    generateAddress(publicKey:string):string{
+    generateAddress(publicKey:string, privKey:string):string{
         if(this.networkFamily == NetworkFamily.EVM){
             // use default address created by ethers wallet
             return this.address;
@@ -118,14 +119,16 @@ export default class WalletKryptik extends Wallet{
             return this.generateBitcoinFamilyAddress(publicKey)
         }
         if(this.networkFamily == NetworkFamily.Solana){
-            return this.generateSolanaFamilyAddress(publicKey);
+            return this.generateSolanaFamilyAddress(privKey);
         }
         throw(Error(`Unable to generate address for wallet with network type: ${this.chainId}`));
     }
 
     // returns address for coins in the solana family
-    generateSolanaFamilyAddress = function(pubKey:string):string{
-        return pubKey;
+    generateSolanaFamilyAddress = function(privKey:string):string{
+        let privKeyArray:Uint8Array = arrayify(privKey);
+        let solKeypair = Keypair.fromSeed(privKeyArray);
+        return solKeypair.publicKey.toString();
     }
 
     // generates address for networks within the bitcoin family
