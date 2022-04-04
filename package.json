@@ -1,6 +1,6 @@
 {
-  "name": "kryptik-seedloop",
-  "version": "1.2.1",
+  "name": "hdseedloop",
+  "version": "0.0.2",
   "description": "A public, private key manager for cross chain assets.",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
