@@ -69,10 +69,27 @@ describe("SeedLoop", () => {
             const id1 = seedLoop.id
     
             const serialized = await seedLoop.serialize()
-            const deserialized = seedLoop.deserialize(serialized)
+            const deserialized = HDSeedLoop.deserialize(serialized)
     
             expect(id1).toBe(deserialized.id)
           })
         )
+      })
+      it("generates distinct addresses", async () => {
+        const allAddresses: string[] = []
+        await Promise.all(
+          twelveOrMoreWordMnemonics.map(async (m) => {
+            const keyring = new HDSeedLoop({ mnemonic: m })
+    
+            await keyring.addAddresses(defaultNetworks["eth"], 10)
+    
+            const addresses = await keyring.getAddresses(defaultNetworks["eth"])
+            expect(addresses.length).toEqual(10)
+            expect(new Set(addresses).size).toEqual(10)
+    
+            allAddresses.concat(addresses)
+          })
+        )
+        expect(new Set(allAddresses).size).toEqual(allAddresses.length)
       })
 });
