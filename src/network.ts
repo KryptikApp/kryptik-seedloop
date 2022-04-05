@@ -16,6 +16,9 @@ export let NetworkInfoDict:{[name: string]: NetworkInfo}  = {
     ltc: new NetworkInfo(2, NetworkFamily.Bitcoin), 
     doge: new NetworkInfo(3, NetworkFamily.Bitcoin), 
     eth: new NetworkInfo(60, NetworkFamily.EVM), 
+    // TODO: update firestore to reflect true avaxc ticker
+    avax: new NetworkInfo(60, NetworkFamily.EVM), 
+    matic: new NetworkInfo(60, NetworkFamily.EVM), 
     xmr: new NetworkInfo(128, NetworkFamily.Bitcoin),
     zec: new NetworkInfo(133, NetworkFamily.Bitcoin), 
     bch: new NetworkInfo(145, NetworkFamily.Bitcoin), 
