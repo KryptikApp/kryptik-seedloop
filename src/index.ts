@@ -1,19 +1,32 @@
 // the seed loop holds the seed and keyrings that share the common seed. Each keyring is responsible for a different coin.
 import * as bip from "bip39"
-import { Network, defaultNetworks } from "./network"
-import HDKeyring from "./keyring"
-import HDKeyRing, { SerializedHDKeyring, Options, defaultOptions } from "./keyring"
-import { validateAndFormatMnemonic, } from "./utils"
 import { HDNode } from "@ethersproject/hdnode"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import * as bitcoin from 'bitcoinjs-lib'
 
+import { Network, defaultNetworks } from "./network"
 import { NetworkFamily } from "./models"
-import { TransactionParameters } from "./walletKryptik"
+import {TransactionParameters } from "./walletKryptik"
+import { validateAndFormatMnemonic, } from "./utils"
+import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
+
 export {
     normalizeHexAddress,
-    normalizeMnemonic
-} from "./utils"
+    normalizeMnemonic,
+    toChecksumAddress,
+    validateAndFormatMnemonic,
+  } from "./utils"
+
+export{
+    Network,
+    NetworkFromTicker
+}
+from "./network"
+
+export { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
+
+export {WalletKryptik, TransactionParameters } from "./walletKryptik"
+
 
 export type SerializedSeedLoop = {
     version: number
@@ -26,7 +39,7 @@ export type SerializedSeedLoop = {
 
 export interface SeedLoop<T> {
     serialize(): Promise<T>
-    getKeyRing(coin: Network): Promise<HDKeyRing>
+    getKeyRing(coin: Network): Promise<HDKeyring>
     getAddresses(network: Network): Promise<string[]>
     addAddresses(network: Network, n?: number): Promise<string[]>
     signTransaction(
@@ -53,7 +66,7 @@ export interface KeyringClass<T> {
 export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     readonly id: string
     #keyrings: HDKeyring[] = []
-    #networkToKeyring : {[name:string]: HDKeyRing} = {}
+    #networkToKeyring : {[name:string]: HDKeyring} = {}
     
     #mnemonic: string | null
     #hdNode: HDNode
@@ -135,7 +148,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     // DESERIALIZE CODE
-    deserialize(obj: SerializedSeedLoop): HDSeedLoop {
+    static deserialize(obj: SerializedSeedLoop): HDSeedLoop {
         const { version, mnemonic, keyrings } = obj
         if (version !== 1) {
             throw new Error(`Unknown serialization version ${obj.version}`)
@@ -149,7 +162,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             mnemonic: mnemonic,
             isCreation: false
         }
-        // create seed loop that will eventually be returned
+        // create seed loop that will eventually be returned.
         var seedLoopNew: HDSeedLoop = new HDSeedLoop(loopOptions)
         // deserialize keyrings
         keyrings.forEach(function (serializedKeyRing) {
@@ -160,7 +173,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return seedLoopNew;
     }
 
-    async getKeyRing(Network: Network): Promise<HDKeyRing> {
+    async getKeyRing(Network: Network): Promise<HDKeyring> {
         return this.#networkToKeyring[Network.ticker];
     }
 
