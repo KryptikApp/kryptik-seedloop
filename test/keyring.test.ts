@@ -7,7 +7,7 @@ import {
 } from "@ethersproject/transactions"
 import { keccak256 } from "@ethersproject/keccak256"
 import { TransactionRequest } from "@ethersproject/abstract-provider"
-import HDKeyring from "../src/keyring"
+import {HDKeyring} from "../src/keyring"
 
 const validMnemonics = [
   "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else",
