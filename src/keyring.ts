@@ -2,19 +2,11 @@ import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import { HDNode } from "@ethersproject/hdnode"
 import * as bitcoin from 'bitcoinjs-lib'
 import { generateMnemonic } from "bip39"
+
 import { Network, NetworkFromTicker } from "./network"
-
-
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
-import WalletKryptik, { TransactionParameters } from "./walletKryptik"
+import {WalletKryptik, TransactionParameters } from "./walletKryptik"
 import { NetworkFamily } from "./models"
-
-export {
-  normalizeHexAddress,
-  normalizeMnemonic,
-  toChecksumAddress,
-  validateAndFormatMnemonic,
-} from "./utils"
 
 
 export type Options = {
@@ -73,7 +65,7 @@ export interface KeyringClass<T> {
   deserialize(serializedKeyring: T): Promise<Keyring<T>>
 }
 
-export default class HDKeyring implements Keyring<SerializedHDKeyring> {
+export class HDKeyring implements Keyring<SerializedHDKeyring> {
   static readonly type: string = "bip32"
 
   readonly path: string
@@ -252,7 +244,11 @@ export default class HDKeyring implements Keyring<SerializedHDKeyring> {
     const childNode = this.#hdNode.derivePath(newPath)
     const walletKryptik = new WalletKryptik(childNode.privateKey, )
     this.#wallets.push(walletKryptik)
-    const address = normalizeHexAddress(walletKryptik.address)
+    let address:string = walletKryptik.address
+    // normalize for readability if from evm chain family
+    if(this.network.getNetworkfamily() == NetworkFamily.EVM){
+      address = normalizeHexAddress(walletKryptik.address)
+    }
     this.#addressToWallet[address] = walletKryptik
   }
 
