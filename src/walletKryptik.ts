@@ -1,17 +1,16 @@
 import { Provider, TransactionRequest } from "@ethersproject/abstract-provider";
 import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
-import { Wallet } from "@ethersproject/wallet";
 import { BytesLike, arrayify } from "@ethersproject/bytes";
 import { SigningKey } from "@ethersproject/signing-key";
-import { Keypair} from '@solana/web3.js';
-import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict } from "./network"
+import { Keypair} from '@solana/web3.js'
 import * as bitcoin from 'bitcoinjs-lib'
-import nacl from "tweetnacl";
-import * as ecc from 'tiny-secp256k1';
-import ECPairFactory from 'ecpair';
+import * as nacl from "tweetnacl";
 
-
+import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict } from "./network"
 import { NetworkFamily } from "./models"
+import { WalletEthers } from "./walletEthers";
+
+
 
 export interface TransactionParameters{
     evmTransaction?:TransactionRequest,
@@ -19,7 +18,7 @@ export interface TransactionParameters{
     solTransactionBuffer?:Uint8Array
 }
 
-export default class WalletKryptik extends Wallet{
+export class WalletKryptik extends WalletEthers{
     // set default chainId... can also be set via the constructor
     public readonly chainId:number = 60
     // wallet network family... set default as evm
@@ -28,6 +27,7 @@ export default class WalletKryptik extends Wallet{
 
     constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, network?:Network, provider?: Provider) {
         super(privateKey, provider);
+
         if(network==null){
             network = defaultNetworks.eth
         }
@@ -72,23 +72,25 @@ export default class WalletKryptik extends Wallet{
 
     // signs btc family transaction
     async signBtcTransaction(btcTransaction:bitcoin.Psbt){
-        const ECPair = ECPairFactory(ecc);
-        // transform privkey from string to buffer and array for crypto func.'s
-        let privKeyArray:Uint8Array = arrayify(this.privateKey);
-        let privKeyBuffer:Buffer = Buffer.from(privKeyArray)
-        // create eckey from privkey buffer
-        let ecKey = ECPair.fromPrivateKey(privKeyBuffer);
-        // sign btc transaction
-        btcTransaction.signInput(0, ecKey);
-        // create validator for btc transaction
-        const validator = (
-            pubkey: Buffer,
-            msghash: Buffer,
-            signature: Buffer,
-          ): boolean => ECPair.fromPublicKey(pubkey).verify(msghash, signature);
-        // validate signature 
-        btcTransaction.validateSignaturesOfInput(0, validator);
-        return btcTransaction;
+        console.log(btcTransaction);
+        // const ECPair = ECPairFactory(ecc);
+        // // transform privkey from string to buffer and array for crypto func.'s
+        // let privKeyArray:Uint8Array = arrayify(this.privateKey);
+        // let privKeyBuffer:Buffer = Buffer.from(privKeyArray)
+        // // create eckey from privkey buffer
+        // let ecKey = ECPair.fromPrivateKey(privKeyBuffer);
+        // // sign btc transaction
+        // btcTransaction.signInput(0, ecKey);
+        // // create validator for btc transaction
+        // const validator = (
+        //     pubkey: Buffer,
+        //     msghash: Buffer,
+        //     signature: Buffer,
+        //   ): boolean => ECPair.fromPublicKey(pubkey).verify(msghash, signature);
+        // // validate signature 
+        // btcTransaction.validateSignaturesOfInput(0, validator);
+        // return btcTransaction;
+        throw Error("Bitcoin tx. signature not implemented yet.")
     }
 
     // can sign data OR transaction!
