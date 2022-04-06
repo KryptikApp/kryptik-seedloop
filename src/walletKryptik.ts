@@ -6,6 +6,9 @@ import { Keypair} from '@solana/web3.js'
 import * as bitcoin from 'bitcoinjs-lib'
 import * as nacl from "tweetnacl";
 
+
+
+
 import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict } from "./network"
 import { NetworkFamily } from "./models"
 import { WalletEthers } from "./walletEthers";
@@ -18,16 +21,17 @@ export interface TransactionParameters{
     solTransactionBuffer?:Uint8Array
 }
 
+
 export class WalletKryptik extends WalletEthers{
     // set default chainId... can also be set via the constructor
     public readonly chainId:number = 60
+    public readonly addressKryptik:string;
     // wallet network family... set default as evm
     public networkFamily:NetworkFamily = NetworkFamily.EVM;
     
 
     constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, network?:Network, provider?: Provider) {
         super(privateKey, provider);
-
         if(network==null){
             network = defaultNetworks.eth
         }
@@ -38,7 +42,7 @@ export class WalletKryptik extends WalletEthers{
         }
         this.networkFamily = network.networkFamily;
         // sets address for wallet
-        this.generateAddress(this.publicKey, this.privateKey)
+        this.addressKryptik = this.generateAddress(this.publicKey, this.privateKey)
     }
 
 
@@ -135,6 +139,7 @@ export class WalletKryptik extends WalletEthers{
 
     // generates address for networks within the bitcoin family
     generateBitcoinFamilyAddress(pubKey:string):string{
+        const pubKeyBuffer:Buffer = Buffer.from(arrayify(pubKey));
         const LITECOIN = {
             messagePrefix: '\x19Litecoin Signed Message:\n',
             bech32: 'ltc',
@@ -158,21 +163,21 @@ export class WalletKryptik extends WalletEthers{
             scriptHash: 0x32,
             wif: 0xb0,
         }
-        let addressToreturn:string = "";
+        let addressToreturn:string = "not set";
         switch(this.chainId){
             case 0:{
-                const { address } = bitcoin.payments.p2pkh({ pubkey: Buffer.from(pubKey, 'hex') });
-                if(address) return addressToreturn;
+                const payment = bitcoin.payments.p2pkh({ pubkey:pubKeyBuffer, network:bitcoin.networks.bitcoin });
+                if(payment.address) return payment.address;
                 break;
             }
             case 2:{
-                const { address } = bitcoin.payments.p2pkh({ pubkey: Buffer.from(pubKey, 'hex') , network:LITECOIN});
-                if(address) return addressToreturn;
+                const payment = bitcoin.payments.p2pkh({ pubkey: pubKeyBuffer , network:LITECOIN});
+                if(payment.address) return payment.address;
                 break;
             }
             case 3:{
-                const { address } = bitcoin.payments.p2pkh({ pubkey: Buffer.from(pubKey, 'hex') , network:DOGECOIN});
-                if(address) return addressToreturn;
+                const payment = bitcoin.payments.p2pkh({ pubkey: pubKeyBuffer , network:DOGECOIN});
+                if(payment.address) return payment.address;
                 break;
             }
             default:{
