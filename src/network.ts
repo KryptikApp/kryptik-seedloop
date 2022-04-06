@@ -16,8 +16,6 @@ export let NetworkInfoDict:{[name: string]: NetworkInfo}  = {
     ltc: new NetworkInfo(2, NetworkFamily.Bitcoin), 
     doge: new NetworkInfo(3, NetworkFamily.Bitcoin), 
     eth: new NetworkInfo(60, NetworkFamily.EVM), 
-    // TODO: update firestore to reflect true avaxc ticker
-    avax: new NetworkInfo(60, NetworkFamily.EVM), 
     matic: new NetworkInfo(60, NetworkFamily.EVM), 
     xmr: new NetworkInfo(128, NetworkFamily.Bitcoin),
     zec: new NetworkInfo(133, NetworkFamily.Bitcoin), 
@@ -26,7 +24,7 @@ export let NetworkInfoDict:{[name: string]: NetworkInfo}  = {
     near: new NetworkInfo(397, NetworkFamily.EVM), 
     pokt: new NetworkInfo(635, NetworkFamily.EVM), 
     bnb: new NetworkInfo(714, NetworkFamily.EVM), 
-    avaxc: new NetworkInfo(9005, NetworkFamily.Solana), 
+    avaxc: new NetworkInfo(9005, NetworkFamily.EVM), 
     one: new NetworkInfo(1023, NetworkFamily.Bitcoin)
 };
 
@@ -90,8 +88,9 @@ defaultNetworks.eth = new Network("Ethereum", "eth")
 defaultNetworks.sol =  new Network("Solana", "sol")
 defaultNetworks.avaxc = new Network("Avalanche C Chain",  "avaxc")
 defaultNetworks.doge = new Network("Dogecoin", "doge")
-defaultNetworks.near = new Network("Near", "near")
+// defaultNetworks.near = new Network("Near", "near")
 defaultNetworks.bnb = new Network("Binance", "bnb")
+defaultNetworks.ltc = new Network("Litecoin", "ltc");
 
 
 // return chain that matches ticker
