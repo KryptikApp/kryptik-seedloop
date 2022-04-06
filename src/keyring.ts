@@ -166,7 +166,8 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     address: string,
     transaction:TransactionParameters
   ): Promise<string|bitcoin.Psbt|Uint8Array> {
-    const normAddress = normalizeHexAddress(address)
+    
+   let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
     if (!this.#addressToWallet[normAddress]) {
       throw new Error("Address not found!")
     }
@@ -197,7 +198,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     types: Record<string, Array<TypedDataField>>,
     value: Record<string, unknown>
   ): Promise<string> {
-    const normAddress = normalizeHexAddress(address)
+    let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
     if (!this.#addressToWallet[normAddress]) {
       throw new Error("Address not found!")
     }
@@ -210,7 +211,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   async signMessage(address: string, message: string): Promise<string> {
-    const normAddress = normalizeHexAddress(address)
+    let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
     if (!this.#addressToWallet[normAddress]) {
       throw new Error("Address not found!")
     }
@@ -240,11 +241,10 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
 
   #deriveChildWallet(index: number): void {
     const newPath = `${index}`
-
     const childNode = this.#hdNode.derivePath(newPath)
-    const walletKryptik = new WalletKryptik(childNode.privateKey, )
+    const walletKryptik = new WalletKryptik(childNode.privateKey, this.network)
     this.#wallets.push(walletKryptik)
-    let address:string = walletKryptik.address
+    let address:string = walletKryptik.generateAddress(walletKryptik.publicKey, walletKryptik.privateKey);
     // normalize for readability if from evm chain family
     if(this.network.getNetworkfamily() == NetworkFamily.EVM){
       address = normalizeHexAddress(walletKryptik.address)
@@ -253,7 +253,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   getAddressesSync(): string[] {
-    return this.#wallets.map((w) => normalizeHexAddress(w.address))
+    return this.#wallets.map((w) => this.network.getNetworkfamily() == NetworkFamily.EVM?normalizeHexAddress(w.addressKryptik):w.addressKryptik)
   }
 
   async getAddresses(): Promise<string[]> {
