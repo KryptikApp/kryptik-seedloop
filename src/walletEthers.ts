@@ -26,7 +26,7 @@ function hasMnemonic(value: any): value is { mnemonic: Mnemonic } {
 
 export class WalletEthers extends SignerEthers implements ExternallyOwnedAccount, TypedDataSigner {
 
-    readonly address: string;
+    address: string;
     readonly provider: Provider|undefined;
 
     // Wrapping the _signingKey and _mnemonic in a getter function prevents
