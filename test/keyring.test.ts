@@ -163,11 +163,12 @@ describe("HDKeyring", () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
         const keyring = new HDKeyring({ mnemonic: m })
-
+        // number of existing addresses
+        let addysInit = await keyring.getAddresses();
         await keyring.addAddresses(10)
 
         const addresses = await keyring.getAddresses()
-        expect(addresses.length).toEqual(10)
+        expect(addresses.length).toEqual(addysInit.length + 10)
         expect(new Set(addresses).size).toEqual(10)
 
         allAddresses.concat(addresses)
@@ -219,36 +220,22 @@ describe("HDKeyring", () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.slice(-1).map(async (m) => {
         const keyring = new HDKeyring({ mnemonic: m })
-
+        let addysInit = await keyring.getAddresses();
         await keyring.addAddresses(10)
 
         const addresses = await keyring.getAddresses()
-        expect(addresses.length).toEqual(10)
-        expect(new Set(addresses).size).toEqual(10)
+        expect(addresses.length).toEqual(addysInit.length + 10)
+        expect(new Set(addresses).size).toEqual(addysInit.length+10)
 
         const keyring2 = new HDKeyring({ mnemonic: m })
-
+        let addysInit2 = await keyring2.getAddresses();
         for (let i = 0; i < 10; i += 1) {
           keyring2.addAddressesSync()
         }
 
         const addresses2 = await keyring2.getAddresses()
-        expect(addresses2.length).toEqual(10)
-        expect(new Set(addresses2).size).toEqual(10)
-      })
-    )
-  })
-  it("generates and initializes the same first address from the same mnemonic", async () => {
-    await Promise.all(
-      validDerivations.map(async ({ mnemonic, addresses }) => {
-        const keyring = new HDKeyring({ mnemonic })
-
-        expect((await keyring.getAddresses()).length).toEqual(0)
-
-        keyring.addAddressesSync()
-
-        expect((await keyring.getAddresses()).length).toEqual(1)
-        expect(await keyring.getAddresses()).toStrictEqual([addresses[0]])
+        expect(addresses2.length).toEqual(addysInit2.length + 10)
+        expect(new Set(addresses2).size).toEqual(addysInit2.length + 10)
       })
     )
   })
@@ -307,7 +294,9 @@ describe("HDKeyring", () => {
     await Promise.all(
       validDerivations.map(async ({ mnemonic, addresses }) => {
         const keyring = new HDKeyring({ mnemonic })
-        await keyring.addAddressesSync(10)
+        let addysInit = await keyring.getAddresses();
+        // there are ten addresses in valid derivations.. generate 10 (init + remaining)
+        await keyring.addAddressesSync(10-addysInit.length)
         const newAddresses = keyring.getAddressesSync()
         expect(newAddresses).toStrictEqual(addresses)
       })

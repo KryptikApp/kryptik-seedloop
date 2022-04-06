@@ -21,6 +21,7 @@ const underTwelveWorkMnemonics = validMnemonics.filter(
 describe("SeedLoop", () => {
     it("Creates a defined seedlopp", ()=>{
       const seedLoop = new HDSeedLoop()
+        console.log(seedLoop);
         expect(seedLoop).toBeDefined()
     })
     it("Keyrings can be constructed without a mnemonic", () => {
@@ -79,17 +80,28 @@ describe("SeedLoop", () => {
         const allAddresses: string[] = []
         await Promise.all(
           twelveOrMoreWordMnemonics.map(async (m) => {
-            const keyring = new HDSeedLoop({ mnemonic: m })
-    
-            await keyring.addAddresses(defaultNetworks["eth"], 10)
-    
-            const addresses = await keyring.getAddresses(defaultNetworks["eth"])
-            expect(addresses.length).toEqual(10)
-            expect(new Set(addresses).size).toEqual(10)
+            const seedLoop = new HDSeedLoop({ mnemonic: m })
+            let addysInit = await seedLoop.getAddresses(defaultNetworks["eth"]);
+            await seedLoop.addAddresses(defaultNetworks["eth"], 10)
+            const addresses = await seedLoop.getAddresses(defaultNetworks["eth"])
+            expect(addresses.length).toEqual(addysInit.length + 10)
+            expect(new Set(addresses).size).toEqual(addysInit.length+10)
     
             allAddresses.concat(addresses)
           })
         )
         expect(new Set(allAddresses).size).toEqual(allAddresses.length)
+      })
+      it("generates all default keyrings with initialized address", async () => {
+        const seedLoop = new HDSeedLoop();
+        let loopKeyrings = seedLoop.getAllKeyrings();
+        let networkDefaultsLength:number  = Object.keys(defaultNetworks).length;
+        expect(loopKeyrings.length).toEqual(networkDefaultsLength);
+        loopKeyrings.forEach(async lk => {
+            let addys = await lk.getAddresses();
+            console.log(lk.network.fullName);
+            console.log(addys);
+            expect(addys.length).toBeGreaterThan(0);
+        });
       })
 });
