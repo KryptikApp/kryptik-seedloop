@@ -1,6 +1,6 @@
 // the seed loop holds the seed and keyrings that share the common seed. Each keyring is responsible for a different coin.
 import * as bip from "bip39"
-import { HDNode } from "@ethersproject/hdnode"
+import { defaultPath, HDNode } from "@ethersproject/hdnode"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import * as bitcoin from 'bitcoinjs-lib'
 
@@ -23,6 +23,8 @@ export{
 }
 from "./network"
 
+export {NetworkFamily} from "./models"
+
 export { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
 
 export {WalletKryptik, TransactionParameters } from "./walletKryptik"
@@ -40,8 +42,11 @@ export type SerializedSeedLoop = {
 export interface SeedLoop<T> {
     serialize(): Promise<T>
     getKeyRing(coin: Network): Promise<HDKeyring>
+    getKeyRingSync(coin: Network): HDKeyring
+    getAllKeyrings():HDKeyring[];
     getAddresses(network: Network): Promise<string[]>
     addAddresses(network: Network, n?: number): Promise<string[]>
+    addAddressesSync(network: Network, n?: number): string[]
     signTransaction(
         address: string,
         transaction: TransactionParameters,
@@ -103,10 +108,16 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     // populate seed loop with keyrings for supported Networks
     #populateLoopKeyrings(options:Options) {
         for (let ticker in defaultNetworks) {
-            let Network: Network = defaultNetworks[ticker]
+            let Network: Network = defaultNetworks[ticker];
+            let networkPath:string = Network.path;
+            // if EVM family use same path, so address is consistent across chains
+            if(Network.getNetworkfamily() == NetworkFamily.EVM){
+                // default patrh is bip44 standard for Ethereum
+                networkPath = defaultPath;
+            }
             let ringOptions:Options = {
                 // default path is BIP-44 ethereum coin type, where depth 5 is the address index
-                path: Network.path,
+                path: networkPath,
                 passphrase: options.passphrase,
                 strength: 128,
                 mnemonic: this.#mnemonic,
@@ -114,6 +125,8 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             }
             // create new key ring for Network given setup options
             var keyRing: HDKeyring = new HDKeyring(ringOptions);
+             // add init addresses sync.
+            keyRing.addAddressesSync();
             // add key ring to seed loop 
             this.addKeyRing(keyRing);
         }
@@ -142,7 +155,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     // add keyring to dictionary and list of fellow key rings
-    async addKeyRing(keyring: HDKeyring) {
+    addKeyRing(keyring: HDKeyring) {
         this.#keyrings.push(keyring)
         this.#networkToKeyring[keyring.network.ticker] = keyring
     }
@@ -174,6 +187,9 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     async getKeyRing(Network: Network): Promise<HDKeyring> {
+        return this.#networkToKeyring[Network.ticker];
+    }
+    getKeyRingSync(Network: Network): HDKeyring {
         return this.#networkToKeyring[Network.ticker];
     }
 
@@ -211,11 +227,20 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         let addresses:string[] = await keyring.getAddresses();
         return addresses;
     }
-
+    // add addresses to a given network
     async addAddresses(network:Network, n:number=1): Promise<string[]>{
         let keyring = await this.getKeyRing(network);
         let addresses:string[] = await keyring.addAddresses(n);
         return addresses;
     }
-
+    // add addresses to a given network synchronously
+    addAddressesSync(network:Network, n:number=1): string[]{
+        let keyring = this.getKeyRingSync(network);
+        let addresses:string[] = keyring.addAddressesSync(n);
+        return addresses;
+    }
+    // gets all keyrings hanging on seedloop
+    getAllKeyrings():HDKeyring[] {
+        return this.#keyrings;
+    }
 }
