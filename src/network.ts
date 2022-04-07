@@ -90,6 +90,7 @@ defaultNetworks.avaxc = new Network("Avalanche C Chain",  "avaxc")
 defaultNetworks.doge = new Network("Dogecoin", "doge")
 // defaultNetworks.near = new Network("Near", "near")
 defaultNetworks.bnb = new Network("Binance", "bnb")
+defaultNetworks.matic = new Network("Polygon", "matic")
 defaultNetworks.ltc = new Network("Litecoin", "ltc");
 
 
