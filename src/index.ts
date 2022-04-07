@@ -76,7 +76,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     #mnemonic: string | null
     #hdNode: HDNode
 
-    constructor(options: Options = {}) {
+    constructor(options: Options = {}, networks=defaultNetworks) {
         const hdOptions: Required<Options> = {
             ...defaultOptions,
             ...options,
@@ -90,7 +90,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         if (!this.#mnemonic) {
             throw new Error("Invalid mnemonic.")
         }
-
+        
         // set passphrase
         const passphrase = hdOptions.passphrase ?? "";
 
@@ -100,14 +100,14 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
 
         // only populate with new keyrings if keyrings haven't already been created and serialized
         if (hdOptions.isCreation) {
-            this.#populateLoopKeyrings(hdOptions);
+            this.#populateLoopKeyrings(hdOptions, networks);
         }
         
     }
 
     // populate seed loop with keyrings for supported Networks
-    #populateLoopKeyrings(options:Options) {
-        for (let ticker in defaultNetworks) {
+    #populateLoopKeyrings(options:Options, networks=defaultNetworks) {
+        for (let ticker in networks) {
             let Network: Network = defaultNetworks[ticker];
             let networkPath:string = Network.path;
             // if EVM family use same path, so address is consistent across chains
