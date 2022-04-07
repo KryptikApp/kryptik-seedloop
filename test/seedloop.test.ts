@@ -104,4 +104,11 @@ describe("SeedLoop", () => {
             expect(addys.length).toBeGreaterThan(0);
         });
       })
+      it("adds all keyrings to seedloop", async () => {
+        const seedLoop = new HDSeedLoop();
+        for (let ticker in defaultNetworks) {
+          expect(seedLoop.networkOnSeedloop(defaultNetworks[ticker])).toBeTruthy();
+        }
+        
+      })
 });
