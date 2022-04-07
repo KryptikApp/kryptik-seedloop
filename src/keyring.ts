@@ -3,10 +3,9 @@ import { HDNode } from "@ethersproject/hdnode"
 import * as bitcoin from 'bitcoinjs-lib'
 import { generateMnemonic } from "bip39"
 
-import { Network, NetworkFromTicker } from "./network"
+import { Network, NetworkFromTicker, NetworkFamily } from "./network"
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
 import {WalletKryptik, TransactionParameters } from "./walletKryptik"
-import { NetworkFamily } from "./models"
 
 
 export type Options = {

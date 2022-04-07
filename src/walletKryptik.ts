@@ -9,8 +9,7 @@ import * as nacl from "tweetnacl";
 
 
 
-import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict } from "./network"
-import { NetworkFamily } from "./models"
+import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict, NetworkFamily } from "./network"
 import { WalletEthers } from "./walletEthers";
 
 
@@ -44,8 +43,6 @@ export class WalletKryptik extends WalletEthers{
         // sets address for wallet
         this.addressKryptik = this.generateAddress(this.publicKey, this.privateKey)
     }
-
-
 
     // sign tx.
     // TODO: add handling for range of types that can be returned... currently assuming this is handled by user of func.
@@ -111,8 +108,6 @@ export class WalletKryptik extends WalletEthers{
         if(!solSigVerified) throw Error("Sol signature verification failed");
         return solSignature;
     }
-
-
 
     // if coin type is of ethereum family... just use default ethers implementation
     // else... create and set address
