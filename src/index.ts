@@ -47,6 +47,7 @@ export interface SeedLoop<T> {
     getAddresses(network: Network): Promise<string[]>
     addAddresses(network: Network, n?: number): Promise<string[]>
     addAddressesSync(network: Network, n?: number): string[]
+    networkOnSeedloop(network:Network):boolean;
     signTransaction(
         address: string,
         transaction: TransactionParameters,
@@ -157,7 +158,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     // add keyring to dictionary and list of fellow key rings
     addKeyRing(keyring: HDKeyring) {
         this.#keyrings.push(keyring)
-        this.#networkToKeyring[keyring.network.ticker] = keyring
+        this.#networkToKeyring[keyring.network.ticker.toLowerCase()] = keyring
     }
 
     // DESERIALIZE CODE
@@ -186,11 +187,11 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return seedLoopNew;
     }
 
-    async getKeyRing(Network: Network): Promise<HDKeyring> {
-        return this.#networkToKeyring[Network.ticker];
+    async getKeyRing(network: Network): Promise<HDKeyring> {
+        return this.#networkToKeyring[network.ticker.toLowerCase()];
     }
-    getKeyRingSync(Network: Network): HDKeyring {
-        return this.#networkToKeyring[Network.ticker];
+    getKeyRingSync(network: Network): HDKeyring {
+        return this.#networkToKeyring[network.ticker.toLowerCase()];
     }
 
     async signTransaction(
@@ -201,6 +202,10 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         let keyring = await this.getKeyRing(network);
         let signedTransaction = await keyring.signTransaction(address, transaction)
         return signedTransaction;
+    }
+
+    networkOnSeedloop(network:Network):boolean{
+        return !this.#networkToKeyring[network.ticker]===undefined;
     }
 
     async signTypedData(
