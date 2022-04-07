@@ -4,8 +4,7 @@ import { defaultPath, HDNode } from "@ethersproject/hdnode"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import * as bitcoin from 'bitcoinjs-lib'
 
-import { Network, defaultNetworks } from "./network"
-import { NetworkFamily } from "./models"
+import { Network, defaultNetworks, NetworkFamily } from "./network"
 import {TransactionParameters } from "./walletKryptik"
 import { validateAndFormatMnemonic, } from "./utils"
 import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
@@ -19,11 +18,11 @@ export {
 
 export{
     Network,
+    NetworkFamily,
     NetworkFromTicker
 }
 from "./network"
 
-export {NetworkFamily} from "./models"
 
 export { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
 
@@ -158,7 +157,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     // add keyring to dictionary and list of fellow key rings
     addKeyRing(keyring: HDKeyring) {
         this.#keyrings.push(keyring)
-        this.#networkToKeyring[keyring.network.ticker.toLowerCase()] = keyring
+        this.#networkToKeyring[keyring.network.ticker] = keyring
     }
 
     // DESERIALIZE CODE
@@ -188,10 +187,10 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     async getKeyRing(network: Network): Promise<HDKeyring> {
-        return this.#networkToKeyring[network.ticker.toLowerCase()];
+        return this.#networkToKeyring[network.ticker];
     }
     getKeyRingSync(network: Network): HDKeyring {
-        return this.#networkToKeyring[network.ticker.toLowerCase()];
+        return this.#networkToKeyring[network.ticker];
     }
 
     async signTransaction(
@@ -205,7 +204,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     networkOnSeedloop(network:Network):boolean{
-        return !this.#networkToKeyring[network.ticker]===undefined;
+        return typeof this.#networkToKeyring[network.ticker] !== "undefined";
     }
 
     async signTypedData(
@@ -216,6 +215,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         network = defaultNetworks.eth
       ): Promise<string> {
         let keyring = await this.getKeyRing(network);
+        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         if(network.networkFamily!=NetworkFamily.EVM) throw Error("Signing typed data not supported for non EVM chains yet.");
         let signedTypedData:string = await keyring.signTypedData(address, domain, types, value);
         return signedTypedData;
@@ -223,29 +223,37 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
 
     async signMessage(address: string, message: string, network=defaultNetworks.eth): Promise<string> {
         let keyring = await this.getKeyRing(network);
+        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let signedMessage:string = await keyring.signMessage(address, message);
         return signedMessage;
     }
 
     async getAddresses(network:Network): Promise<string[]>{
         let keyring = await this.getKeyRing(network);
+        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let addresses:string[] = await keyring.getAddresses();
         return addresses;
     }
     // add addresses to a given network
     async addAddresses(network:Network, n:number=1): Promise<string[]>{
         let keyring = await this.getKeyRing(network);
+        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let addresses:string[] = await keyring.addAddresses(n);
         return addresses;
     }
     // add addresses to a given network synchronously
     addAddressesSync(network:Network, n:number=1): string[]{
         let keyring = this.getKeyRingSync(network);
+        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let addresses:string[] = keyring.addAddressesSync(n);
         return addresses;
     }
     // gets all keyrings hanging on seedloop
     getAllKeyrings():HDKeyring[] {
         return this.#keyrings;
+    }
+
+    #keyringValid(keyring:HDKeyring):boolean{
+        return !keyring===undefined;
     }
 }
