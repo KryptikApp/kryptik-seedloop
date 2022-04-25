@@ -315,7 +315,7 @@ describe("HDKeyring", () => {
       })
     )
   })
-  it("signs messages recoverably", async () => {
+  it("signs ethereum  messages recoverably", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
         const keyring = new HDKeyring({ mnemonic: m })
@@ -331,7 +331,7 @@ describe("HDKeyring", () => {
       })
     )
   })
-  it("signs transactions recoverably", async () => {
+  it("signs ethereum transactions recoverably", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
         const keyring = new HDKeyring({ mnemonic: m })
@@ -358,7 +358,7 @@ describe("HDKeyring", () => {
       })
     )
   })
-  it("signs typed data recoverably", async () => {
+  it("signs ethereum typed data recoverably", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
         const keyring = new HDKeyring({ mnemonic: m })
