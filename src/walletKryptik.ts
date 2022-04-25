@@ -5,6 +5,8 @@ import { SigningKey } from "@ethersproject/signing-key";
 import { Keypair} from '@solana/web3.js'
 import * as bitcoin from 'bitcoinjs-lib'
 import * as nacl from "tweetnacl";
+import * as ecc from 'tiny-secp256k1';
+import { ECPairFactory,} from 'ecpair';
 
 
 
@@ -58,7 +60,7 @@ export class WalletKryptik extends WalletEthers{
                 // btcTransaction.signInput(0, pk)
                 // ensure btc tx. was passed in
                 if(!txParams.btcTransaction) throw Error("BTC transaction not provided.");
-                throw Error("Btc signatures not implemented yet.")
+                return this.signBtcTransaction(txParams.btcTransaction);
             }
             case NetworkFamily.Solana:{
                 // ensure sol tx. was passed in
@@ -74,23 +76,21 @@ export class WalletKryptik extends WalletEthers{
     // signs btc family transaction
     async signBtcTransaction(btcTransaction:bitcoin.Psbt){
         console.log(btcTransaction);
-        // const ECPair = ECPairFactory(ecc);
-        // // transform privkey from string to buffer and array for crypto func.'s
-        // let privKeyArray:Uint8Array = arrayify(this.privateKey);
-        // let privKeyBuffer:Buffer = Buffer.from(privKeyArray)
-        // // create eckey from privkey buffer
-        // let ecKey = ECPair.fromPrivateKey(privKeyBuffer);
-        // // sign btc transaction
-        // btcTransaction.signInput(0, ecKey);
-        // // create validator for btc transaction
-        // const validator = (
-        //     pubkey: Buffer,
-        //     msghash: Buffer,
-        //     signature: Buffer,
-        //   ): boolean => ECPair.fromPublicKey(pubkey).verify(msghash, signature);
-        // // validate signature 
-        // btcTransaction.validateSignaturesOfInput(0, validator);
-        // return btcTransaction;
+        const privKeyBuffer:Buffer = Buffer.from(arrayify(this.privateKey));
+        const ECPair = ECPairFactory(ecc);
+        // create eckey from privkey buffer
+        let ecKey = ECPair.fromPrivateKey(privKeyBuffer);
+        // sign btc transaction
+        btcTransaction.signInput(0, ecKey);
+        // create validator for btc transaction
+        const validator = (
+            pubkey: Buffer,
+            msghash: Buffer,
+            signature: Buffer,
+          ): boolean => ECPair.fromPublicKey(pubkey).verify(msghash, signature);
+        // validate signature 
+        btcTransaction.validateSignaturesOfInput(0, validator);
+        return btcTransaction;
         throw Error("Bitcoin tx. signature not implemented yet.")
     }
 
