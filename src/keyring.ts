@@ -166,10 +166,12 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     transaction:TransactionParameters
   ): Promise<string|bitcoin.Psbt|Uint8Array> {
     
-   let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
+    // normalize EVM address
+    let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
     if (!this.#addressToWallet[normAddress]) {
       throw new Error("Address not found!")
     }
+    
     // catch invalid transaction params and the sign
     switch(this.network.networkFamily){
       case NetworkFamily.EVM:{
