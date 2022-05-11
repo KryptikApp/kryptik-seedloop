@@ -138,7 +138,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   static deserialize(obj: SerializedHDKeyring, passphrase?: string): HDKeyring {
-    const { version, keyringType, mnemonic, path, addressIndex, networkTicker } = obj
+    const { version, keyringType, id, mnemonic, path, addressIndex, networkTicker } = obj
     if (version !== 1) {
       throw new Error(`Unknown serialization version ${obj.version}`)
     }
@@ -153,6 +153,9 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       passphrase,
       networkTicker
     })
+
+    // ensure cHDnode matches original
+    if(keyring.id != id) throw  new Error("The deserialized keyring fingerprint does not match the original.");
 
     keyring.addAddressesSync(addressIndex)
 
