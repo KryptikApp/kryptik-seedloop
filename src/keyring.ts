@@ -35,6 +35,7 @@ export const defaultOptions = {
 export type SerializedHDKeyring = {
   version: number
   id: string
+  mnemonic: string
   path: string
   keyringType: string
   addressIndex: number
@@ -79,6 +80,8 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
 
   #addressToWallet: { [address: string]: WalletKryptik}
 
+  #mnemonic: string
+
   constructor(options: Options = {}) {
     const hdOptions: Required<Options> = {
       ...defaultOptions,
@@ -92,6 +95,8 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     if (!mnemonic) {
       throw new Error("Invalid mnemonic.")
     }
+
+    this.#mnemonic = mnemonic
 
     const passphrase = hdOptions.passphrase ?? ""
 
@@ -120,6 +125,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     return {
       version: 1,
       id: this.id,
+      mnemonic: this.#mnemonic,
       keyringType: HDKeyring.type,
       path: this.path,
       addressIndex: this.#addressIndex,
@@ -132,7 +138,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   static deserialize(obj: SerializedHDKeyring, passphrase?: string): HDKeyring {
-    const { version, keyringType, path, addressIndex, networkTicker } = obj
+    const { version, keyringType, mnemonic, path, addressIndex, networkTicker } = obj
     if (version !== 1) {
       throw new Error(`Unknown serialization version ${obj.version}`)
     }
@@ -142,6 +148,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     }
 
     const keyring = new HDKeyring({
+      mnemonic,
       path,
       passphrase,
       networkTicker
