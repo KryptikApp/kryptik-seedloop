@@ -247,7 +247,8 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   getAddressesSync(): string[] {
-    return this.#wallets.map((w) => this.network.getNetworkfamily() == NetworkFamily.EVM?normalizeHexAddress(w.addressKryptik):w.addressKryptik)
+    let networkFamily:NetworkFamily = this.network.getNetworkfamily();
+    return this.#wallets.map((w) => networkFamily == NetworkFamily.EVM?normalizeHexAddress(w.addressKryptik):w.addressKryptik)
   }
 
   async getAddresses(): Promise<string[]> {
