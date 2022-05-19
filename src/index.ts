@@ -186,6 +186,10 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return seedLoopNew;
     }
 
+    getSeedPhrase():string|null{
+        return this.#mnemonic;
+    }
+
     async getKeyRing(network: Network): Promise<HDKeyring> {
         return this.#networkToKeyring[network.ticker];
     }
