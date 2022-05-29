@@ -1,6 +1,6 @@
 // the seed loop holds the seed and keyrings that share the common seed. Each keyring is responsible for a different coin.
 import * as bip from "bip39"
-import { defaultPath, HDNode } from "@ethersproject/hdnode"
+import { HDNode } from "@ethersproject/hdnode"
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import * as bitcoin from 'bitcoinjs-lib'
 
@@ -46,6 +46,7 @@ export interface SeedLoop<T> {
     getAddresses(network: Network): Promise<string[]>
     addAddresses(network: Network, n?: number): Promise<string[]>
     addAddressesSync(network: Network, n?: number): string[]
+    getSeedPhrase():string|null
     networkOnSeedloop(network:Network):boolean;
     signTransaction(
         address: string,
@@ -110,10 +111,10 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         for (let ticker in networks) {
             let Network: Network = defaultNetworks[ticker];
             let networkPath:string = Network.path;
-            // if EVM family use same path, so address is consistent across chains
+            // if EVM family... use same path, so address is consistent across chains
+            // default path is bip44 standard for Ethereum
             if(Network.getNetworkfamily() == NetworkFamily.EVM){
-                // default patrh is bip44 standard for Ethereum
-                networkPath = defaultPath;
+                networkPath = defaultOptions.path;
             }
             let ringOptions:Options = {
                 // default path is BIP-44 ethereum coin type, where depth 5 is the address index
@@ -191,7 +192,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     async getKeyRing(network: Network): Promise<HDKeyring> {
-        return this.#networkToKeyring[network.ticker];
+        return this.getKeyRingSync(network);
     }
     getKeyRingSync(network: Network): HDKeyring {
         return this.#networkToKeyring[network.ticker];
