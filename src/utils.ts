@@ -1,5 +1,7 @@
 import { keccak256 } from "@ethersproject/keccak256"
 import * as bip from "bip39"
+import { Network, NetworkFamily } from "./network"
+import { getAddress } from "@ethersproject/address";
 
 
 export function normalizeMnemonic(mnemonic: string): string {
@@ -60,3 +62,69 @@ export function toChecksumAddress(address: string, chainId?: number): string {
   
     return `0x${checkSum}`
   }
+
+
+  // Captures 0x + 4 characters, then the last 4 characters.
+const truncateRegex = /^(0x[a-zA-Z0-9]{4})[a-zA-Z0-9]+([a-zA-Z0-9]{4})$/;
+/**
+ * Truncates an ethereum address to the format 0x0000…0000
+ * @param address Full address to truncate
+ * @returns Truncated address
+ */
+const truncateEthAddress = (address: string) => {
+  const match = address.match(truncateRegex);
+  if (!match) return address;
+  return `${match[1]}…${match[2]}`;
+};
+
+
+// truncates blockchain address
+export function truncateAddress(address: string, network:Network):string{
+    switch(network.networkFamily){
+        case NetworkFamily.EVM: { 
+            return truncateEthAddress(address);
+            break; 
+         } 
+         default: { 
+             // for now... just keep original address
+            return address;
+            break; 
+         } 
+    }
+}
+
+// validates blockchain address
+export function isValidAddress(address:string, network:Network):boolean{
+    switch(network.networkFamily){
+        case NetworkFamily.EVM: { 
+            try{
+                getAddress(address);
+                return true;
+            } 
+            catch(e){
+                return false;
+            }
+         } 
+         default: { 
+             // for now... just return true
+            return true;
+            break; 
+         } 
+    }
+}
+
+// formats blockchain address
+export function formatAddress(address:string, network:Network):string{
+    if(!isValidAddress(address, network)) throw(Error("Invalid address was passed in!"));
+    switch(network.networkFamily){
+        case NetworkFamily.EVM: { 
+            return getAddress(address);
+            break; 
+         } 
+         default: { 
+             // for now... just return original address
+            return address;
+            break; 
+         } 
+    }
+}
