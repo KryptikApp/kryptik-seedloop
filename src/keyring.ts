@@ -6,6 +6,8 @@ import { generateMnemonic } from "bip39"
 import { Network, NetworkFromTicker, NetworkFamily } from "./network"
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
 import {WalletKryptik, TransactionParameters } from "./walletKryptik"
+import { Keypair, PublicKey } from "@solana/web3.js"
+import { arrayify } from "@ethersproject/bytes"
 
 
 export type Options = {
@@ -45,6 +47,7 @@ export type SerializedHDKeyring = {
 export interface Keyring<T> {
   serialize(): Promise<T>
   getAddresses(): Promise<string[]>
+  getSolanaFamilyPubKey():PublicKey|null
   addAddresses(n?: number): Promise<string[]>
   signTransaction(
     address: string,
@@ -110,7 +113,6 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       parentNode = HDNode.fromMnemonic(mnemonic, passphrase, "en");
     }
     
-
     this.#hdNode = parentNode.derivePath(
       this.path
     )
@@ -138,28 +140,28 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   static deserialize(obj: SerializedHDKeyring, passphrase?: string): HDKeyring {
-    const { version, keyringType, id, mnemonic, path, addressIndex, networkTicker } = obj
+    const { version, keyringType, id, mnemonic, path, addressIndex, networkTicker } = obj;
     if (version !== 1) {
       throw new Error(`Unknown serialization version ${obj.version}`)
-    }
+    };
 
     if (keyringType !== HDKeyring.type) {
       throw new Error("HDKeyring only supports BIP-32/44 style HD wallets.")
-    }
+    };
 
     const keyring = new HDKeyring({
       mnemonic,
       path,
       passphrase,
       networkTicker
-    })
+    });
 
-    // ensure cHDnode matches original
+    // ensure HDnode matches original
     if(keyring.id != id) throw  new Error("The deserialized keyring fingerprint does not match the original.");
 
-    keyring.addAddressesSync(addressIndex)
+    keyring.addAddressesSync(addressIndex);
 
-    return keyring
+    return keyring;
   }
 
 
@@ -247,13 +249,22 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     const newPath = `${index}`
     const childNode = this.#hdNode.derivePath(newPath)
     const walletKryptik = new WalletKryptik(childNode.privateKey, this.network)
-    this.#wallets.push(walletKryptik)
+    this.#wallets.push(walletKryptik);
     let address:string = walletKryptik.generateAddress(walletKryptik.publicKey, walletKryptik.privateKey);
     // normalize for readability if from evm chain family
     if(this.network.getNetworkfamily() == NetworkFamily.EVM){
       address = normalizeHexAddress(walletKryptik.address)
     }
     this.#addressToWallet[address] = walletKryptik
+  }
+
+  getSolanaFamilyPubKey():PublicKey|null{
+    if(this.network.networkFamily!=NetworkFamily.Solana) throw(new Error("Tryed to generate solana public key from non solana keyring."));
+    if(this.#wallets.length == 0) return null;
+    // UPDATE TO PULL MORE THAN FIRST WALLET AVAILABLE
+    let privKeyArray:Uint8Array = arrayify(this.#wallets[0].privateKey);
+    let solKeyPair = Keypair.fromSeed(privKeyArray);
+    return solKeyPair.publicKey;
   }
 
   getAddressesSync(): string[] {
