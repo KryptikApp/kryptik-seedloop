@@ -6,7 +6,7 @@ import * as bitcoin from 'bitcoinjs-lib'
 
 import { Network, defaultNetworks, NetworkFamily } from "./network"
 import {TransactionParameters } from "./walletKryptik"
-import { validateAndFormatMnemonic, } from "./utils"
+import { validateAndFormatMnemonic } from "./utils"
 import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
 
 export {
@@ -14,6 +14,7 @@ export {
     normalizeMnemonic,
     toChecksumAddress,
     validateAndFormatMnemonic,
+    isValidAddress, truncateAddress, formatAddress
   } from "./utils"
 
 export{
