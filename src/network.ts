@@ -25,7 +25,7 @@ export let NetworkInfoDict:{[name: string]: NetworkInfo}  = {
     xmr: new NetworkInfo(128, NetworkFamily.Bitcoin),
     zec: new NetworkInfo(133, NetworkFamily.Bitcoin), 
     bch: new NetworkInfo(145, NetworkFamily.Bitcoin), 
-    sol: new NetworkInfo(145, NetworkFamily.Solana), 
+    sol: new NetworkInfo(501, NetworkFamily.Solana), 
     near: new NetworkInfo(397, NetworkFamily.EVM), 
     pokt: new NetworkInfo(635, NetworkFamily.EVM), 
     bnb: new NetworkInfo(714, NetworkFamily.EVM), 
