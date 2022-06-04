@@ -1,6 +1,5 @@
 import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import { HDNode } from "@ethersproject/hdnode"
-import * as bitcoin from 'bitcoinjs-lib'
 import { generateMnemonic } from "bip39"
 
 import { Network, NetworkFromTicker, NetworkFamily } from "./network"
@@ -8,6 +7,7 @@ import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
 import {WalletKryptik, TransactionParameters } from "./walletKryptik"
 import { Keypair, PublicKey } from "@solana/web3.js"
 import { arrayify } from "@ethersproject/bytes"
+import { SignedTransaction } from "."
 
 
 export type Options = {
@@ -52,7 +52,7 @@ export interface Keyring<T> {
   signTransaction(
     address: string,
     transaction: TransactionParameters
-  ): Promise<string|bitcoin.Psbt|Uint8Array>
+  ): Promise<SignedTransaction>
   signTypedData(
     address: string,
     domain: TypedDataDomain,
@@ -169,27 +169,30 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   async signTransaction(
     address: string,
     transaction:TransactionParameters
-  ): Promise<string|bitcoin.Psbt|Uint8Array> {
+  ): Promise<SignedTransaction> {
     
     // normalize EVM address
     let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
     if (!this.#addressToWallet[normAddress]) {
       throw new Error("Address not found!")
     }
-    
+    let signedTx:SignedTransaction;
     // catch invalid transaction params and the sign
     switch(this.network.networkFamily){
       case NetworkFamily.EVM:{
         if(!transaction.evmTransaction) throw Error("No EVM transaction passed to sign.");
-        return this.#addressToWallet[normAddress].signKryptikTransaction(transaction)
+        signedTx = await this.#addressToWallet[normAddress].signKryptikTransaction(transaction);
+        return signedTx;
       }
       case NetworkFamily.Bitcoin:{
         if(!transaction.btcTransaction) throw Error("No BTC transaction passed to sign.");
-        return this.#addressToWallet[normAddress].signKryptikTransaction(transaction)
+        signedTx = await this.#addressToWallet[normAddress].signKryptikTransaction(transaction);
+        return signedTx;
       }
       case NetworkFamily.Solana:{
         if(!transaction.solTransactionBuffer) throw Error("No Solana transaction passed to sign.");
-        return this.#addressToWallet[normAddress].signKryptikTransaction(transaction)
+        signedTx = await this.#addressToWallet[normAddress].signKryptikTransaction(transaction);
+        return signedTx;
       }
       default:{
         throw Error(`Network with chain id: ${this.network.chainId} not yet supported for transaction signatures.`)

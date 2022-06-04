@@ -38,6 +38,12 @@ export type SerializedSeedLoop = {
     keyrings: SerializedHDKeyring[]
 }
 
+export interface SignedTransaction{
+    evmFamilyTx?: string,
+    bitcoinFamilyTx?: bitcoin.Psbt
+    solanaFamilyTx?: Uint8Array
+}
+
 
 export interface SeedLoop<T> {
     serialize(): Promise<T>
@@ -53,7 +59,7 @@ export interface SeedLoop<T> {
         address: string,
         transaction: TransactionParameters,
         network: Network
-    ): Promise<string|bitcoin.Psbt|Uint8Array>
+    ): Promise<SignedTransaction>
     signTypedData(
         address: string,
         domain: TypedDataDomain,
@@ -203,7 +209,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         address: string,
         transaction: TransactionParameters,
         network = defaultNetworks.eth
-      ): Promise<string|bitcoin.Psbt|Uint8Array> {
+      ): Promise<SignedTransaction> {
         let keyring = await this.getKeyRing(network);
         let signedTransaction = await keyring.signTransaction(address, transaction)
         return signedTransaction;
