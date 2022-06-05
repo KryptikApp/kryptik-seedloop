@@ -20,6 +20,8 @@ export {
 export{
     Network,
     NetworkFamily,
+    NetworkParameters,
+    NetworkFamilyFromFamilyName,
     NetworkFromTicker
 }
 from "./network"
@@ -53,6 +55,7 @@ export interface SeedLoop<T> {
     getAddresses(network: Network): Promise<string[]>
     addAddresses(network: Network, n?: number): Promise<string[]>
     addAddressesSync(network: Network, n?: number): string[]
+    addKeyRingByNetwork(network:Network):HDKeyring|null
     getSeedPhrase():string|null
     networkOnSeedloop(network:Network):boolean;
     signTransaction(
@@ -120,11 +123,11 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             let networkPath:string = Network.path;
             // if EVM family... use same path, so address is consistent across chains
             // default path is bip44 standard for Ethereum
-            if(Network.getNetworkfamily() == NetworkFamily.EVM){
+            if(Network.networkFamily == NetworkFamily.EVM){
                 networkPath = defaultOptions.path;
             }
             let ringOptions:Options = {
-                // default path is BIP-44 ethereum coin type, where depth 5 is the address index
+                // default path is BIP-44 ethereum coin type
                 path: networkPath,
                 passphrase: options.passphrase,
                 strength: 128,
@@ -138,6 +141,23 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             // add key ring to seed loop 
             this.addKeyRing(keyRing);
         }
+    }
+
+    addKeyRingByNetwork(network:Network):HDKeyring|null{
+        if(this.networkOnSeedloop(network)) return null;
+        let ringOptions:Options = {
+            path: network.path,
+            strength: 128,
+            mnemonic: this.#mnemonic,
+            networkTicker: network.ticker
+        }
+        // create new key ring for Network given setup options
+        var keyRing: HDKeyring = new HDKeyring(ringOptions);
+         // add init addresses sync.
+        keyRing.addAddressesSync();
+        // add key ring to seed loop 
+        this.addKeyRing(keyRing);
+        return keyRing;
     }
 
     // SERIALIZE CODE
