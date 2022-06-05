@@ -64,18 +64,26 @@ export function toChecksumAddress(address: string, chainId?: number): string {
   }
 
 
-  // Captures 0x + 4 characters, then the last 4 characters.
-const truncateRegex = /^(0x[a-zA-Z0-9]{4})[a-zA-Z0-9]+([a-zA-Z0-9]{4})$/;
+// Captures 0x + 4 characters, then the last 4 characters.
+const truncateRegexEth = /^(0x[a-zA-Z0-9]{4})[a-zA-Z0-9]+([a-zA-Z0-9]{4})$/;
+// Captures 4 characters, then the last 4 characters.
+const truncateRegexSol = /^([a-zA-Z0-9]{4})[a-zA-Z0-9]+([a-zA-Z0-9]{4})$/;
 /**
  * Truncates an ethereum address to the format 0x0000…0000
  * @param address Full address to truncate
  * @returns Truncated address
  */
 const truncateEthAddress = (address: string) => {
-  const match = address.match(truncateRegex);
+  const match = address.match(truncateRegexEth);
   if (!match) return address;
   return `${match[1]}…${match[2]}`;
 };
+
+const truncateSolAddress = (address: string) => {
+    const match = address.match(truncateRegexSol);
+    if (!match) return address;
+    return `${match[1]}…${match[2]}`;
+}
 
 
 // truncates blockchain address
@@ -85,9 +93,13 @@ export function truncateAddress(address: string, network:Network):string{
             return truncateEthAddress(address);
             break; 
          } 
+         case NetworkFamily.Solana:{
+             return truncateSolAddress(address);
+             break;
+         }
          default: { 
-             // for now... just keep original address
-            return address;
+             // for now... just use solana truncation
+             return truncateSolAddress(address);
             break; 
          } 
     }
