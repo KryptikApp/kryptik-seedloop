@@ -119,7 +119,7 @@ export function NetworkFromTicker(ticker: string): Network{
 }
 
 export function NetworkFamilyFromFamilyName(familyName:string):NetworkFamily{
-    switch(familyName){
+    switch(familyName.toLowerCase()){
         case "bitcoin":{
             return NetworkFamily.EVM
             break;
