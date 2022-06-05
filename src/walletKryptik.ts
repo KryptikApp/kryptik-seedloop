@@ -106,13 +106,9 @@ export class WalletKryptik extends WalletEthers{
         // ensure wallet has associated pk
         if(!this.privateKey) throw Error("No private key found when signing sol transaction. Ensure wallet has been properly instantiated.");
         // create key buffers
-        let privKeyArray:Uint8Array = arrayify(this.privateKey);
-        let pubKeyArray:Uint8Array = arrayify(this.publicKey);
+        let secretKey = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey)).secretKey;
         // create sol signature
-        let solSignature:Uint8Array = nacl.sign.detached(solTransactionBuffer, privKeyArray);
-        // verify signature
-        let solSigVerified:Boolean = nacl.sign.detached.verify(solTransactionBuffer, solSignature, pubKeyArray)
-        if(!solSigVerified) throw Error("Sol signature verification failed");
+        let solSignature:Uint8Array = nacl.sign.detached(solTransactionBuffer, secretKey);
         return solSignature;
     }
 
