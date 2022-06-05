@@ -255,7 +255,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     this.#wallets.push(walletKryptik);
     let address:string = walletKryptik.generateAddress(walletKryptik.publicKey, walletKryptik.privateKey);
     // normalize for readability if from evm chain family
-    if(this.network.getNetworkfamily() == NetworkFamily.EVM){
+    if(this.network.networkFamily == NetworkFamily.EVM){
       address = normalizeHexAddress(walletKryptik.address)
     }
     this.#addressToWallet[address] = walletKryptik
@@ -271,7 +271,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   getAddressesSync(): string[] {
-    let networkFamily:NetworkFamily = this.network.getNetworkfamily();
+    let networkFamily:NetworkFamily = this.network.networkFamily;
     return this.#wallets.map((w) => networkFamily == NetworkFamily.EVM?normalizeHexAddress(w.addressKryptik):w.addressKryptik)
   }
 
