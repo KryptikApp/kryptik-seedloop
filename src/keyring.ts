@@ -14,7 +14,7 @@ export type Options = {
     strength?: number
     path?: string
     mnemonic?: string | null
-    networkTicker?: string
+    network?: Network
     isCreation?: boolean
     passphrase?: string|null
     parentNode?: HDNode|null
@@ -25,7 +25,7 @@ export const defaultOptions = {
   path: "m/44'/60'/0'/0",
   strength: 128,
   mnemonic: null,
-  networkTicker: "Eth",
+  network: NetworkFromTicker("eth"),
   passphrase: null,
   isCreation: true,
   parentNode:null
@@ -41,7 +41,7 @@ export type SerializedHDKeyring = {
   path: string
   keyringType: string
   addressIndex: number
-  networkTicker: string
+  network: Network
 }
 
 export interface Keyring<T> {
@@ -120,7 +120,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     this.#addressIndex = 0
     this.#wallets = []
     this.#addressToWallet = {}
-    this.network = NetworkFromTicker(hdOptions.networkTicker)
+    this.network = hdOptions.network
   }
 
   serializeSync(): SerializedHDKeyring {
@@ -131,7 +131,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       keyringType: HDKeyring.type,
       path: this.path,
       addressIndex: this.#addressIndex,
-      networkTicker: this.network.ticker
+      network: this.network,
     }
   }
 
@@ -140,7 +140,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   static deserialize(obj: SerializedHDKeyring, passphrase?: string): HDKeyring {
-    const { version, keyringType, id, mnemonic, path, addressIndex, networkTicker } = obj;
+    const { version, keyringType, id, mnemonic, path, addressIndex, network } = obj;
     if (version !== 1) {
       throw new Error(`Unknown serialization version ${obj.version}`)
     };
@@ -153,7 +153,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       mnemonic,
       path,
       passphrase,
-      networkTicker
+      network
     });
 
     // ensure HDnode matches original

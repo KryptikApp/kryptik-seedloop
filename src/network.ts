@@ -45,7 +45,7 @@ export interface NetworkParameters{
     ticker: string,
     path?:string,
     chainId?:number,
-    networkFamily?:number
+    networkFamilyName?:string
 }
 
 export class Network{
@@ -60,9 +60,9 @@ export class Network{
     constructor(networkParams:NetworkParameters) {
         this.fullName = networkParams.fullName;
         this.ticker = networkParams.ticker.toLowerCase();
-        this.path =  networkParams.path?networkParams.path : this.getPath();
+        this.path =  networkParams.path? networkParams.path : this.getPath(networkParams.chainId);
         this.chainId = networkParams.chainId? networkParams.chainId : this.getChainId();
-        this.networkFamily = networkParams.networkFamily? networkParams.networkFamily : this.getNetworkfamily();
+        this.networkFamily = networkParams.networkFamilyName? NetworkFamilyFromFamilyName(networkParams.networkFamilyName):this.getNetworkfamily();
     }
 
     // builds coin path based on BIP-44 standard
@@ -83,7 +83,10 @@ export class Network{
     // returns network family for given chain
     private getNetworkfamily(): number{
         let networkInfo:NetworkInfo = NetworkInfoDict[this.ticker];
-        let networkFamily:NetworkFamily = networkInfo.networkFamily;
+        let networkFamily:NetworkFamily = NetworkFamily.EVM;
+        if(networkInfo){
+            networkFamily = networkInfo.networkFamily;
+        }
         return networkFamily;
     }
     

@@ -132,7 +132,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
                 passphrase: options.passphrase,
                 strength: 128,
                 mnemonic: this.#mnemonic,
-                networkTicker: Network.ticker
+                network: Network
             }
             // create new key ring for Network given setup options
             var keyRing: HDKeyring = new HDKeyring(ringOptions);
@@ -149,7 +149,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             path: network.path,
             strength: 128,
             mnemonic: this.#mnemonic,
-            networkTicker: network.ticker
+            network: network
         }
         // create new key ring for Network given setup options
         var keyRing: HDKeyring = new HDKeyring(ringOptions);
@@ -236,7 +236,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     networkOnSeedloop(network:Network):boolean{
-        return typeof this.#networkToKeyring[network.ticker] !== "undefined";
+        return network.ticker in this.#networkToKeyring;
     }
 
     async signTypedData(
