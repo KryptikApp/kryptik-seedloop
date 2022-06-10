@@ -46,8 +46,6 @@ export class WalletEthers extends SignerEthers implements ExternallyOwnedAccount
             // defineReadOnly(this, "address", computeAddress(this.publicKey));
             this._signingKey = () => signingKey;
             this.address = computeAddress(this.publicKey);
-            
-
             if (this.address !== getAddress(privateKey.address)) {
                 throw Error("privateKey/address mismatch");
             }
@@ -122,7 +120,7 @@ export class WalletEthers extends SignerEthers implements ExternallyOwnedAccount
     }
 
     connect(provider: Provider): WalletEthers {
-        return new WalletEthers(this, provider);
+        return new WalletEthers(this.privateKey, provider);
     }
 
     signTransaction(transaction: TransactionRequest): Promise<string> {
