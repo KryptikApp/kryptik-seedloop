@@ -1,6 +1,6 @@
 {
   "name": "hdseedloop",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "A public, private key manager for cross chain assets.",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
@@ -21,6 +21,7 @@
     "node": ">=10"
   },
   "scripts": {
+    "testFeatures": "dts test features.test.ts",
     "start": "dts watch",
     "build": "dts build",
     "test": "dts test",
