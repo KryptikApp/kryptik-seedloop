@@ -5,7 +5,7 @@ import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import * as bitcoin from 'bitcoinjs-lib'
 
 import { Network, defaultNetworks, NetworkFamily } from "./network"
-import {TransactionParameters } from "./walletKryptik"
+import {TransactionParameters, WalletKryptik } from "./walletKryptik"
 import { validateAndFormatMnemonic } from "./utils"
 import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
 
@@ -52,6 +52,7 @@ export interface SeedLoop<T> {
     getKeyRing(coin: Network): Promise<HDKeyring>
     getKeyRingSync(coin: Network): HDKeyring
     getAllKeyrings():HDKeyring[];
+    getWalletForAddress(network:Network, address:string):WalletKryptik|null
     getAddresses(network: Network): Promise<string[]>
     addAddresses(network: Network, n?: number): Promise<string[]>
     addAddressesSync(network: Network, n?: number): string[]
@@ -132,7 +133,8 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
                 passphrase: options.passphrase,
                 strength: 128,
                 mnemonic: this.#mnemonic,
-                network: Network
+                network: Network,
+                parentNode: this.#hdNode
             }
             // create new key ring for Network given setup options
             var keyRing: HDKeyring = new HDKeyring(ringOptions);
@@ -276,7 +278,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     // add addresses to a given network synchronously
     addAddressesSync(network:Network, n:number=1): string[]{
         let keyring = this.getKeyRingSync(network);
-        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+        if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let addresses:string[] = keyring.addAddressesSync(n);
         return addresses;
     }
@@ -286,6 +288,13 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     #keyringValid(keyring:HDKeyring):boolean{
-        return !keyring===undefined;
+        return keyring!=undefined;
+    }
+
+    getWalletForAddress(network:Network, address:string):WalletKryptik|null{
+        let keyring = this.getKeyRingSync(network);
+        if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+        let walletToReturn:WalletKryptik|null = keyring.getWalletSync(address);
+        return walletToReturn;
     }
 }

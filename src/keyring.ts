@@ -5,8 +5,6 @@ import { generateMnemonic } from "bip39"
 import { Network, NetworkFromTicker, NetworkFamily } from "./network"
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
 import {WalletKryptik, TransactionParameters } from "./walletKryptik"
-import { Keypair, PublicKey } from "@solana/web3.js"
-import { arrayify } from "@ethersproject/bytes"
 import { SignedTransaction } from "."
 
 
@@ -47,7 +45,7 @@ export type SerializedHDKeyring = {
 export interface Keyring<T> {
   serialize(): Promise<T>
   getAddresses(): Promise<string[]>
-  getSolanaFamilyPubKey():PublicKey|null
+  getWalletSync(address:string): WalletKryptik|null
   addAddresses(n?: number): Promise<string[]>
   signTransaction(
     address: string,
@@ -249,25 +247,16 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   #deriveChildWallet(index: number): void {
-    const newPath = `${index}`
-    const childNode = this.#hdNode.derivePath(newPath)
+    let newPath = `${index}`
+    const childNode = this.#hdNode.derivePath(newPath);
     const walletKryptik = new WalletKryptik(childNode.privateKey, this.network)
     this.#wallets.push(walletKryptik);
-    let address:string = walletKryptik.generateAddress(walletKryptik.publicKey, walletKryptik.privateKey);
+    let address:string = walletKryptik.generateAddress();
     // normalize for readability if from evm chain family
     if(this.network.networkFamily == NetworkFamily.EVM){
       address = normalizeHexAddress(walletKryptik.address)
     }
     this.#addressToWallet[address] = walletKryptik
-  }
-
-  getSolanaFamilyPubKey():PublicKey|null{
-    if(this.network.networkFamily!=NetworkFamily.Solana) throw(new Error("Tryed to generate solana public key from non solana keyring."));
-    if(this.#wallets.length == 0) return null;
-    // UPDATE TO PULL MORE THAN FIRST WALLET AVAILABLE
-    let privKeyArray:Uint8Array = arrayify(this.#wallets[0].privateKey);
-    let solKeyPair = Keypair.fromSeed(privKeyArray);
-    return solKeyPair.publicKey;
   }
 
   getAddressesSync(): string[] {
@@ -279,5 +268,13 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     return this.getAddressesSync()
   }
 
-  
+  // get wallet by address
+  getWalletSync(address:string):WalletKryptik|null{
+    let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
+    if (!this.#addressToWallet[normAddress]) {
+      return null;
+    }
+    let wallet = this.#addressToWallet[address];
+    return wallet;
+  }
 }
