@@ -1,6 +1,6 @@
 {
   "name": "hdseedloop",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "A public, private key manager for cross chain assets.",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
@@ -21,7 +21,7 @@
     "node": ">=10"
   },
   "scripts": {
-    "testFeatures": "dts test features.test.ts",
+    "ab": "dts test features.test.ts",
     "start": "dts watch",
     "build": "dts build",
     "test": "dts test",
@@ -67,6 +67,7 @@
     "@ethersproject/json-wallets": "5.4.0",
     "@ethersproject/keccak256": "^5.4.0",
     "@ethersproject/properties": "^5.4.0",
+    "@ethersproject/providers": "^5.6.8",
     "@ethersproject/random": "^5.6.0",
     "@ethersproject/signing-key": "^5.4.0",
     "@ethersproject/wallet": "5.4.0",
