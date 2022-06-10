@@ -10,8 +10,6 @@ import { SignedTransaction } from ".";
 // import { ECPairFactory,} from 'ecpair';
 
 
-
-
 import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict, NetworkFamily } from "./network"
 import { WalletEthers } from "./walletEthers";
 
@@ -44,7 +42,8 @@ export class WalletKryptik extends WalletEthers{
         }
         this.networkFamily = network.networkFamily;
         // sets address for wallet
-        this.addressKryptik = this.generateAddress(this.publicKey, this.privateKey)
+        this.addressKryptik = this.generateAddress()
+        this.address = this.generateAddress();
     }
 
     // sign tx.
@@ -98,7 +97,6 @@ export class WalletKryptik extends WalletEthers{
         // // validate signature 
         // btcTransaction.validateSignaturesOfInput(0, validator);
         // return btcTransaction;
-        
     }
 
     // can sign data OR transaction!
@@ -114,24 +112,24 @@ export class WalletKryptik extends WalletEthers{
 
     // if coin type is of ethereum family... just use default ethers implementation
     // else... create and set address
-    generateAddress(publicKey:string, privKey:string):string{
+    generateAddress():string{
         if(this.networkFamily == NetworkFamily.EVM){
             // use default address created by ethers wallet
             return this.address;
         }
         if(this.networkFamily == NetworkFamily.Bitcoin){
-            return this.generateBitcoinFamilyAddress(publicKey)
+            return this.generateBitcoinFamilyAddress(this.publicKey)
         }
         if(this.networkFamily == NetworkFamily.Solana){
-            return this.generateSolanaFamilyAddress(privKey);
+            return this.generateSolanaFamilyAddress();
         }
         throw(Error(`Unable to generate address for wallet with network type: ${this.chainId}`));
     }
 
     // returns address for coins in the solana family
-    generateSolanaFamilyAddress = function(privKey:string):string{
-        let privKeyArray:Uint8Array = arrayify(privKey);
-        let solKeypair = Keypair.fromSeed(privKeyArray);
+    generateSolanaFamilyAddress():string{
+        let secretKey = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey)).secretKey;
+        let solKeypair = Keypair.fromSecretKey(secretKey);
         return solKeypair.publicKey.toString();
     }
 
