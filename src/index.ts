@@ -8,6 +8,7 @@ import { Network, defaultNetworks, NetworkFamily } from "./network"
 import {TransactionParameters, WalletKryptik } from "./walletKryptik"
 import { validateAndFormatMnemonic } from "./utils"
 import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
+import nacl from "tweetnacl"
 
 export {
     normalizeHexAddress,
@@ -296,5 +297,12 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let walletToReturn:WalletKryptik|null = keyring.getWalletSync(address);
         return walletToReturn;
+    }
+
+    getKeypairForAddress(network:Network, address:string):nacl.SignKeyPair|null{
+        let keyring = this.getKeyRingSync(network);
+        if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+        let keypairToReturn:nacl.SignKeyPair|null = keyring.getKeypairSync(address);
+        return keypairToReturn;
     }
 }

@@ -6,6 +6,7 @@ import { Network, NetworkFromTicker, NetworkFamily } from "./network"
 import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
 import {WalletKryptik, TransactionParameters } from "./walletKryptik"
 import { SignedTransaction } from "."
+import nacl from "tweetnacl"
 
 
 export type Options = {
@@ -276,5 +277,14 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     }
     let wallet = this.#addressToWallet[address];
     return wallet;
+  }
+
+  getKeypairSync(address:string):nacl.SignKeyPair|null{
+    let normAddress:string = NetworkFamily.EVM?normalizeHexAddress(address):address;
+    if (!this.#addressToWallet[normAddress]) {
+      return null;
+    }
+    let wallet = this.#addressToWallet[address];
+    return wallet.createKeyPair();
   }
 }

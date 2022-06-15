@@ -104,10 +104,15 @@ export class WalletKryptik extends WalletEthers{
         // ensure wallet has associated pk
         if(!this.privateKey) throw Error("No private key found when signing sol transaction. Ensure wallet has been properly instantiated.");
         // create key buffers
-        let secretKey = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey)).secretKey;
+        let secretKey = this.createKeyPair().secretKey;
         // create sol signature
         let solSignature:Uint8Array = nacl.sign.detached(solTransactionBuffer, secretKey);
         return solSignature;
+    }
+
+    createKeyPair():nacl.SignKeyPair{
+        let keyPair:nacl.SignKeyPair = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey));
+        return keyPair;
     }
 
     // if coin type is of ethereum family... just use default ethers implementation
