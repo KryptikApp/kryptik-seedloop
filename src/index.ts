@@ -45,6 +45,7 @@ export interface SignedTransaction{
     evmFamilyTx?: string,
     bitcoinFamilyTx?: bitcoin.Psbt
     solanaFamilyTx?: Uint8Array
+    nearFamilyTx?: Uint8Array
 }
 
 
@@ -198,7 +199,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             throw new Error(`Unknown serialization version ${obj.version}`)
         }
 
-        // create loop options with prexisting mnemonic
+        // create loop options with pre-existing mnemonic
         // TODO add null check for mnemonic
         let loopOptions = {
             // default path is BIP-44 ethereum coin type, where depth 5 is the address index
