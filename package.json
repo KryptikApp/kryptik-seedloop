@@ -1,6 +1,6 @@
 {
   "name": "hdseedloop",
-  "version": "0.4.9",
+  "version": "0.5.0",
   "description": "A public, private key manager for cross chain assets.",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
@@ -79,6 +79,7 @@
     "bip39": "^3.0.4",
     "bitcoinjs-lib": "^6.0.1",
     "ecpair": "^2.0.1",
+    "ed25519-hd-key": "^1.2.0",
     "elliptic": "^6.5.4",
     "tweetnacl": "^1.0.3"
   }
