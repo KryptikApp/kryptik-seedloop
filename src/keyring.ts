@@ -2,8 +2,8 @@ import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
 import { HDNode } from "@ethersproject/hdnode"
 import { generateMnemonic } from "bip39"
 
-import { Network, NetworkFromTicker, NetworkFamily } from "./network"
-import { normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
+import { Network, NetworkFromTicker, NetworkFamily, getPath } from "./network"
+import { createWalletSeed, normalizeHexAddress, validateAndFormatMnemonic } from "./utils"
 import {WalletKryptik, TransactionParameters } from "./walletKryptik"
 import { SignedTransaction } from "."
 import nacl from "tweetnacl"
@@ -29,8 +29,6 @@ export const defaultOptions = {
   isCreation: true,
   parentNode:null
 }
-
-
 
 
 export type SerializedHDKeyring = {
@@ -189,7 +187,12 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         return signedTx;
       }
       case NetworkFamily.Solana:{
-        if(!transaction.solTransactionBuffer) throw Error("No Solana transaction passed to sign.");
+        if(!transaction.transactionBuffer) throw Error("No Solana transaction passed to sign.");
+        signedTx = await this.#addressToWallet[normAddress].signKryptikTransaction(transaction);
+        return signedTx;
+      }
+      case NetworkFamily.Near:{
+        if(!transaction.transactionBuffer) throw Error("No transaction buffer passed to sign.");
         signedTx = await this.#addressToWallet[normAddress].signKryptikTransaction(transaction);
         return signedTx;
       }
@@ -248,9 +251,18 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   #deriveChildWallet(index: number): void {
-    let newPath = `${index}`
-    const childNode = this.#hdNode.derivePath(newPath);
-    const walletKryptik = new WalletKryptik(childNode.privateKey, this.network)
+    let newPath = `${index}`;
+    let privKey:string = this.#hdNode.derivePath(newPath).privateKey;
+    let secretED25519Key:Uint8Array|undefined = undefined;
+    // get special private key for ED25519 curve based networks
+    if(this.network.networkFamily == NetworkFamily.Solana || this.network.networkFamily == NetworkFamily.Near){
+      // create full derivation path
+      newPath = getPath(this.network.ticker, this.network.chainId, this.network.networkFamily, index);
+      const keySeed = createWalletSeed(newPath, this.#mnemonic);
+      secretED25519Key = nacl.sign.keyPair.fromSeed(keySeed).secretKey;
+    }
+    // note: provider is undefined on creation; can be added via connect method
+    const walletKryptik = new WalletKryptik(privKey, this.network, undefined, secretED25519Key)
     this.#wallets.push(walletKryptik);
     let address:string = walletKryptik.generateAddress();
     // normalize for readability if from evm chain family
