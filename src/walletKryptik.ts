@@ -2,7 +2,7 @@ import { Provider, TransactionRequest } from "@ethersproject/abstract-provider";
 import { ExternallyOwnedAccount } from "@ethersproject/abstract-signer";
 import { BytesLike, arrayify } from "@ethersproject/bytes";
 import { SigningKey } from "@ethersproject/signing-key";
-import { Keypair} from '@solana/web3.js'
+import { Keypair } from "@solana/web3.js";
 import * as bitcoin from 'bitcoinjs-lib'
 import * as nacl from "tweetnacl";
 import { SignedTransaction } from ".";
@@ -10,7 +10,7 @@ import { SignedTransaction } from ".";
 // import { ECPairFactory,} from 'ecpair';
 
 
-import { defaultNetworks, Network, NetworkInfo, NetworkInfoDict, NetworkFamily } from "./network"
+import { defaultNetworks, Network, NetworkFamily } from "./network"
 import { WalletEthers } from "./walletEthers";
 
 
@@ -18,19 +18,22 @@ import { WalletEthers } from "./walletEthers";
 export interface TransactionParameters{
     evmTransaction?:TransactionRequest,
     btcTransaction?:bitcoin.Psbt,
-    solTransactionBuffer?:Uint8Array
+    transactionBuffer?:Uint8Array
 }
 
 
 export class WalletKryptik extends WalletEthers{
     // set default chainId... can also be set via the constructor
     public readonly chainId:number = 60
+    // tikcer of network this wallet belongs to
     public readonly addressKryptik:string;
     // wallet network family... set default as evm
     public networkFamily:NetworkFamily = NetworkFamily.EVM;
+    // warapping private key in getter prevents leak in console
+    private _ed25519PrivateKey: ()=>Uint8Array|null;
     
 
-    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, network?:Network, provider?: Provider) {
+    constructor(privateKey: BytesLike | ExternallyOwnedAccount | SigningKey, network:Network, provider?: Provider, ed25519rivateKey?:Uint8Array) {
         super(privateKey, provider);
         if(network==null){
             network = defaultNetworks.eth
@@ -40,6 +43,7 @@ export class WalletKryptik extends WalletEthers{
         if(chainId!=null){
             this.chainId = chainId
         }
+        this._ed25519PrivateKey = () => {return ed25519rivateKey?ed25519rivateKey:null};
         this.networkFamily = network.networkFamily;
         // sets address for wallet
         this.addressKryptik = this.generateAddress()
@@ -67,8 +71,15 @@ export class WalletKryptik extends WalletEthers{
             }
             case NetworkFamily.Solana:{
                 // ensure sol tx. was passed in
-                if(!txParams.solTransactionBuffer) throw Error("Sol transaction not provided.");
-                signedTx.solanaFamilyTx = await this.signSolMessage(txParams.solTransactionBuffer);
+                if(!txParams.transactionBuffer) throw Error("Sol transaction not provided.");
+                signedTx.solanaFamilyTx = await this.signSolMessage(txParams.transactionBuffer);
+                return signedTx;
+            }
+            case NetworkFamily.Near:{
+                // ensure near tx. was passed in
+                if(!txParams.transactionBuffer) throw Error("Near transaction not provided.");
+                // solana and near families can use same signature method
+                signedTx.nearFamilyTx = await this.signSolMessage(txParams.transactionBuffer);
                 return signedTx;
             }
             default:{
@@ -79,7 +90,7 @@ export class WalletKryptik extends WalletEthers{
 
     // signs btc family transaction
     async signBtcTransaction(btcTransaction:bitcoin.Psbt){
-        throw Error("Bitcoin tx. signature not implemented yet.")
+        throw Error("Bitcoin tx. signature not implemented yet.");
         return btcTransaction;
         // console.log(btcTransaction);
         // const privKeyBuffer:Buffer = Buffer.from(arrayify(this.privateKey));
@@ -111,35 +122,67 @@ export class WalletKryptik extends WalletEthers{
     }
 
     createKeyPair():nacl.SignKeyPair{
-        let keyPair:nacl.SignKeyPair = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey));
+        let ed25519PrivKey = this._ed25519PrivateKey();
+        // use sol secret key if present... otherwise use secpk251 private key.
+        let keyPair:nacl.SignKeyPair = nacl.sign.keyPair.fromSecretKey(ed25519PrivKey?ed25519PrivKey:arrayify(this.privateKey));
         return keyPair;
     }
 
     // if coin type is of ethereum family... just use default ethers implementation
     // else... create and set address
     generateAddress():string{
-        if(this.networkFamily == NetworkFamily.EVM){
-            // use default address created by ethers wallet
-            return this.address;
+        switch(this.networkFamily){
+            case(NetworkFamily.EVM):{
+                // use default address created by ethers wallet
+                return this.address;
+            }
+            case(NetworkFamily.Bitcoin):{
+                return this.generateBitcoinFamilyAddress();
+            }
+            case(NetworkFamily.Solana):{
+                return this.generateED25519Address();
+            }
+            case(NetworkFamily.Near):{
+                // generate ed25519Address as hex
+                return this.generateED25519Address(true);
+            }
+            default:{
+                throw(Error(`Unable to generate address for wallet with network type: ${this.chainId}`));
+            }
         }
-        if(this.networkFamily == NetworkFamily.Bitcoin){
-            return this.generateBitcoinFamilyAddress(this.publicKey)
-        }
-        if(this.networkFamily == NetworkFamily.Solana){
-            return this.generateSolanaFamilyAddress();
-        }
-        throw(Error(`Unable to generate address for wallet with network type: ${this.chainId}`));
+    
     }
 
     // returns address for coins in the solana family
-    generateSolanaFamilyAddress():string{
-        let secretKey = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey)).secretKey;
-        let solKeypair = Keypair.fromSecretKey(secretKey);
-        return solKeypair.publicKey.toString();
+    generateED25519Address(isHexRep?:boolean):string{
+        // intialize sol address to return
+        let ed25519Address:string;
+        let ed25519PrivKey = this._ed25519PrivateKey();
+        // create new sol address from 
+        let keypair = this.createKeyPair();
+        let ed25519Keypair:Keypair = Keypair.fromSecretKey(keypair.secretKey);
+        // create sol keypair based on privkey availability 
+        if(ed25519PrivKey){
+            ed25519Keypair = Keypair.fromSecretKey(ed25519PrivKey);
+        }
+        // if undefined, use sol keypair defined by secpk251 private key
+        else{
+            let secretKey = nacl.sign.keyPair.fromSeed(arrayify(this.privateKey)).secretKey;
+            ed25519Keypair = Keypair.fromSecretKey(secretKey);
+        }
+        // return address in correct format
+        if(isHexRep){
+            ed25519Address = ed25519Keypair.publicKey.toBuffer().toString('hex');
+        }
+        else{
+            ed25519Address = ed25519Keypair.publicKey.toString();
+        }
+        return ed25519Address;
     }
 
     // generates address for networks within the bitcoin family
-    generateBitcoinFamilyAddress(pubKey:string):string{
+    generateBitcoinFamilyAddress():string{
+        let pubKey:string = this.publicKey;
         const pubKeyBuffer:Buffer = Buffer.from(arrayify(pubKey));
         const LITECOIN = {
             messagePrefix: '\x19Litecoin Signed Message:\n',
@@ -186,19 +229,6 @@ export class WalletKryptik extends WalletEthers{
             }
         }
         return addressToreturn;
-    }
-
-    // returns chain family
-    getNetworkFamily = function(chainId:number):NetworkFamily{
-        for (let ticker in NetworkInfoDict) {
-            let NetworkInfo:NetworkInfo = NetworkInfoDict[ticker];
-            // match chainId
-            if(NetworkInfo.chainCode == chainId){
-                return NetworkInfo.networkFamily
-            }
-        }
-        // if we got this far, something went wrong
-        return NetworkFamily.EVM;
     }
 
 
