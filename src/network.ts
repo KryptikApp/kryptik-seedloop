@@ -1,9 +1,12 @@
 export enum NetworkFamily{
+    // evm compatible blockchains
     EVM = 0,
-    // uses special address
+    // solana compatible blockchains
     Solana = 1,
     // general tx. based networks like BTC, LTC, etc.
-    Bitcoin = 2
+    Bitcoin = 2,
+    // near compatible blockchains
+    Near = 3
 }
 
 export class NetworkInfo{
@@ -26,7 +29,7 @@ export let NetworkInfoDict:{[name: string]: NetworkInfo}  = {
     zec: new NetworkInfo(133, NetworkFamily.Bitcoin), 
     bch: new NetworkInfo(145, NetworkFamily.Bitcoin), 
     sol: new NetworkInfo(501, NetworkFamily.Solana), 
-    near: new NetworkInfo(397, NetworkFamily.EVM), 
+    near: new NetworkInfo(397, NetworkFamily.Near), 
     pokt: new NetworkInfo(635, NetworkFamily.EVM), 
     bnb: new NetworkInfo(714, NetworkFamily.EVM), 
     avaxc: new NetworkInfo(9005, NetworkFamily.EVM), 
@@ -60,24 +63,9 @@ export class Network{
     constructor(networkParams:NetworkParameters) {
         this.fullName = networkParams.fullName;
         this.ticker = networkParams.ticker.toLowerCase();
-        this.path =  networkParams.path? networkParams.path : this.getPath(networkParams.chainId);
         this.chainId = networkParams.chainId? networkParams.chainId : this.getChainId();
         this.networkFamily = networkParams.networkFamilyName? NetworkFamilyFromFamilyName(networkParams.networkFamilyName):this.getNetworkfamily();
-    }
-
-    // builds coin path based on BIP-44 standard
-    private getPath(chainCodeIn?:number): string{
-        let chainCode:number;
-        if(chainCodeIn){
-            chainCode = chainCodeIn
-        }
-        else{
-            let networkInfo:NetworkInfo = NetworkInfoDict[this.ticker];
-            chainCode = networkInfo.chainCode;
-        }
-        
-        let path = `m/44'/${chainCode}'/0'/0`;
-        return path;
+        this.path =  networkParams.path? networkParams.path : getPath(this.ticker, networkParams.chainId, this.networkFamily);
     }
 
     // returns network family for given chain
@@ -109,6 +97,7 @@ defaultNetworks.doge = new Network({fullName: "Dogecoin", ticker: "doge"})
 defaultNetworks.bnb = new Network({fullName:"Binance", ticker: "bnb"})
 defaultNetworks.matic = new Network({fullName:"Polygon", ticker: "matic"})
 defaultNetworks.ltc = new Network({fullName:"Litecoin", ticker: "ltc"});
+defaultNetworks.near = new Network({fullName:"Near Protocol", ticker: "near"});
 
 
 // return chain that matches ticker
@@ -119,6 +108,32 @@ export function NetworkFromTicker(ticker: string): Network{
     catch(err){
         throw(Error(`Unable to find network for ticker: ${ticker}`))
     }
+}
+
+// builds coin path based on BIP-44 standard
+export function getPath(ticker:string, chainCodeIn?:number, networkFamily?:NetworkFamily, depth=0): string{
+    let chainCode:number;
+    if(chainCodeIn){
+        chainCode = chainCodeIn
+    }
+    else{
+        let networkInfo:NetworkInfo = NetworkInfoDict[ticker];
+        chainCode = networkInfo.chainCode;
+    }
+    let path = `m/44'/${chainCode}'/0'/${depth}`;
+    // special cases for sol family networks WHICH USE ED CURVE 
+    if(ticker && networkFamily && (networkFamily == NetworkFamily.Solana || NetworkFamily.Near)){
+        switch(ticker.toLowerCase()){
+            case("near"):{
+                path = `m/44'/${chainCode}'/${depth}'`
+                break;
+            }
+            default:{
+                path = `m/44'/${chainCode}'/0'/${depth}'`
+            }
+        }
+    }
+    return path;
 }
 
 export function NetworkFamilyFromFamilyName(familyName:string):NetworkFamily{
@@ -133,6 +148,10 @@ export function NetworkFamilyFromFamilyName(familyName:string):NetworkFamily{
         }
         case "solana":{
             return NetworkFamily.Solana;
+            break;
+        }
+        case "near":{
+            return NetworkFamily.Near;
             break;
         }
         default:{
