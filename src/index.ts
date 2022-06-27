@@ -89,7 +89,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     #mnemonic: string | null
     #hdNode: HDNode
 
-    constructor(options: Options = {}, networks=defaultNetworks) {
+    constructor(options: Options = {}, networks:Network[]=Object.values(defaultNetworks)) {
         const hdOptions: Required<Options> = {
             ...defaultOptions,
             ...options,
@@ -119,9 +119,8 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     // populate seed loop with keyrings for supported Networks
-    #populateLoopKeyrings(options:Options, networks=defaultNetworks) {
-        for (let ticker in networks) {
-            let Network: Network = defaultNetworks[ticker];
+    #populateLoopKeyrings(options:Options, networks:Network[]=Object.values(defaultNetworks)) {
+        for (const Network of networks) {
             let networkPath:string = Network.path;
             // if the network is already on the seedloop.. move on to the next network
             if(this.networkOnSeedloop(Network)) continue;
@@ -150,8 +149,12 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
 
     addKeyRingByNetwork(network:Network):HDKeyring{
         if(this.networkOnSeedloop(network)) return this.getKeyRingSync(network);
+        let networkPath = network.path;
+        if(network.networkFamily == NetworkFamily.EVM){
+            networkPath = defaultOptions.path;
+        }
         let ringOptions:Options = {
-            path: network.path,
+            path: networkPath,
             strength: 128,
             mnemonic: this.#mnemonic,
             network: network
@@ -197,6 +200,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             }
             case(NetworkFamily.EVM):{
                 this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME] = keyring;
+                keyring
                 break;
             }
             case(NetworkFamily.Near):{
@@ -212,7 +216,6 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
                 break;
             }
         }
-        this.#networkToKeyring[keyring.network.ticker] = keyring;
     }
 
     // DESERIALIZE CODE
@@ -245,26 +248,35 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     async getKeyRing(network: Network): Promise<HDKeyring> {
-        return this.getKeyRingSync(network);
+        let keyringToReturn:HDKeyring = this.getKeyRingSync(network);
+        return keyringToReturn;
     }
     getKeyRingSync(network: Network): HDKeyring {
+        let keyringToReturn:HDKeyring;
         switch(network.networkFamily){
             case(NetworkFamily.Bitcoin):{
-                return this.#networkToKeyring[network.ticker];
+                keyringToReturn = this.#networkToKeyring[network.ticker];
+                break;
             }
             case(NetworkFamily.EVM):{
-                return this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME];
+                keyringToReturn = this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME];
+                break;
             }
             case(NetworkFamily.Near):{
-                return this.#networkToKeyring[NEAR_FAMILY_KEYRING_NAME];
+                keyringToReturn = this.#networkToKeyring[NEAR_FAMILY_KEYRING_NAME];
+                break;
             }
             case(NetworkFamily.Solana):{
-                return this.#networkToKeyring[SOLANA_FAMILY_KEYRING_NAME];
+                keyringToReturn = this.#networkToKeyring[SOLANA_FAMILY_KEYRING_NAME];
+                break;
             }
             default:{
-                return this.#networkToKeyring[network.ticker];
+                keyringToReturn = this.#networkToKeyring[network.ticker];
+                break;
             }
         }
+        if(!keyringToReturn) throw(new Error(`Error: Unable to retrieve keyring ${network.fullName}. Name not present in network map.`))
+        return keyringToReturn;
     }
 
     async signTransaction(
@@ -280,6 +292,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     networkOnSeedloop(network:Network):boolean{
         // account based families can share the same keyring
         // tx based families like bitcoin should have a distinct keyring for every network
+        if(!network) throw(new Error("Error: network not provided. Unable to check if network is on seedloop."));
         switch(network.networkFamily){
             case(NetworkFamily.Bitcoin):{
                 return network.ticker in this.#networkToKeyring;
