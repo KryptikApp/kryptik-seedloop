@@ -93,7 +93,6 @@ defaultNetworks.eth = new Network({fullName: "Ethereum", ticker: "eth"})
 defaultNetworks.sol =  new Network({fullName: "Solana", ticker: "sol"})
 defaultNetworks.avaxc = new Network({fullName:"Avalanche C Chain",  ticker: "avaxc"})
 defaultNetworks.matic = new Network({fullName:"Polygon", ticker: "matic"})
-defaultNetworks.ltc = new Network({fullName:"Litecoin", ticker: "ltc"});
 defaultNetworks.near = new Network({fullName:"Near Protocol", ticker: "near"});
 
 
