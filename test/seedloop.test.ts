@@ -1,5 +1,5 @@
 import HDSeedLoop from "../src"
-import { defaultNetworks} from "../src/network";
+import { defaultNetworks, Network} from "../src/network";
 
 const validMnemonics = [
   "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else",
@@ -92,22 +92,23 @@ describe("SeedLoop", () => {
         )
         expect(new Set(allAddresses).size).toEqual(allAddresses.length)
       })
-      it("generates all default keyrings with initialized address", async () => {
+      it("generates all default keyrings with single initialized address", async () => {
         const seedLoop = new HDSeedLoop();
         let loopKeyrings = seedLoop.getAllKeyrings();
-        let networkDefaultsLength:number  = Object.keys(defaultNetworks).length;
-        expect(loopKeyrings.length).toEqual(networkDefaultsLength);
+        console.log("NUMBER OF KEYRINGS ON DEFAULT SEEDLOOP:");
+        console.log(loopKeyrings.length);
         loopKeyrings.forEach(async lk => {
             let addys = await lk.getAddresses();
-            console.log(lk.network.fullName);
+            console.log(`${lk.network.fullName} Addresses:`);
             console.log(addys);
-            expect(addys.length).toBeGreaterThan(0);
+            expect(addys.length).toEqual(1);
         });
       })
       it("adds all keyrings to seedloop", async () => {
         const seedLoop = new HDSeedLoop();
-        for (let ticker in defaultNetworks) {
-          expect(seedLoop.networkOnSeedloop(defaultNetworks[ticker])).toBeTruthy();
+        let networks:Network[] = Object.values(defaultNetworks);
+        for (const nw of networks) {
+          expect(seedLoop.networkOnSeedloop(defaultNetworks[nw.ticker])).toBeTruthy();
         }
       })
       // it("signs bitcoin transaction correctly", async () => {
