@@ -9,6 +9,7 @@ export enum NetworkFamily{
     Near = 3
 }
 
+
 export class NetworkInfo{
     public chainCode:number
     public networkFamily: NetworkFamily
@@ -88,13 +89,9 @@ export class Network{
 
 // default networks used to init. seed loop
 export let defaultNetworks: { [name: string]: Network } = {}
-defaultNetworks.btc = new Network({fullName: "Bitcoin", ticker: "btc"})
 defaultNetworks.eth = new Network({fullName: "Ethereum", ticker: "eth"})
 defaultNetworks.sol =  new Network({fullName: "Solana", ticker: "sol"})
 defaultNetworks.avaxc = new Network({fullName:"Avalanche C Chain",  ticker: "avaxc"})
-defaultNetworks.doge = new Network({fullName: "Dogecoin", ticker: "doge"})
-// defaultNetworks.near = new Network("Near", "near")
-defaultNetworks.bnb = new Network({fullName:"Binance", ticker: "bnb"})
 defaultNetworks.matic = new Network({fullName:"Polygon", ticker: "matic"})
 defaultNetworks.ltc = new Network({fullName:"Litecoin", ticker: "ltc"});
 defaultNetworks.near = new Network({fullName:"Near Protocol", ticker: "near"});
