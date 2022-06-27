@@ -9,13 +9,14 @@ import {TransactionParameters, WalletKryptik } from "./walletKryptik"
 import { validateAndFormatMnemonic } from "./utils"
 import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
 import nacl from "tweetnacl"
+import { EVM_FAMILY_KEYRING_NAME, NEAR_FAMILY_KEYRING_NAME, SOLANA_FAMILY_KEYRING_NAME } from "./constants"
 
 export {
     normalizeHexAddress,
     normalizeMnemonic,
     toChecksumAddress,
     validateAndFormatMnemonic,
-    isValidAddress, truncateAddress, formatAddress
+    isValidEVMAddress, truncateAddress, formatAddress
   } from "./utils"
 
 export{
@@ -81,10 +82,8 @@ export interface KeyringClass<T> {
     deserialize(serializedKeyring: T): Promise<SeedLoop<T>>
 }
 
-
 export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     readonly id: string
-    #keyrings: HDKeyring[] = []
     #networkToKeyring : {[name:string]: HDKeyring} = {}
     
     #mnemonic: string | null
@@ -124,6 +123,8 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         for (let ticker in networks) {
             let Network: Network = defaultNetworks[ticker];
             let networkPath:string = Network.path;
+            // if the network is already on the seedloop.. move on to the next network
+            if(this.networkOnSeedloop(Network)) continue;
             // if EVM family... use same path, so address is consistent across chains
             // default path is bip44 standard for Ethereum
             if(Network.networkFamily == NetworkFamily.EVM){
@@ -147,8 +148,8 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         }
     }
 
-    addKeyRingByNetwork(network:Network):HDKeyring|null{
-        if(this.networkOnSeedloop(network)) return null;
+    addKeyRingByNetwork(network:Network):HDKeyring{
+        if(this.networkOnSeedloop(network)) return this.getKeyRingSync(network);
         let ringOptions:Options = {
             path: network.path,
             strength: 128,
@@ -188,8 +189,30 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
 
     // add keyring to dictionary and list of fellow key rings
     addKeyRing(keyring: HDKeyring) {
-        this.#keyrings.push(keyring)
-        this.#networkToKeyring[keyring.network.ticker] = keyring
+        let network:Network = keyring.network;
+        switch(network.networkFamily){
+            case(NetworkFamily.Bitcoin):{
+                this.#networkToKeyring[network.ticker] = keyring;
+                break;
+            }
+            case(NetworkFamily.EVM):{
+                this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME] = keyring;
+                break;
+            }
+            case(NetworkFamily.Near):{
+                this.#networkToKeyring[NEAR_FAMILY_KEYRING_NAME] = keyring;
+                break;
+            }
+            case(NetworkFamily.Solana):{
+                this.#networkToKeyring[SOLANA_FAMILY_KEYRING_NAME] = keyring;
+                break;
+            }
+            default:{
+                this.#networkToKeyring[network.ticker] = keyring;
+                break;
+            }
+        }
+        this.#networkToKeyring[keyring.network.ticker] = keyring;
     }
 
     // DESERIALIZE CODE
@@ -214,7 +237,6 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             var keyRing: HDKeyring = HDKeyring.deserialize(serializedKeyRing);
             seedLoopNew.addKeyRing(keyRing);
         })     
-
         return seedLoopNew;
     }
 
@@ -226,7 +248,23 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return this.getKeyRingSync(network);
     }
     getKeyRingSync(network: Network): HDKeyring {
-        return this.#networkToKeyring[network.ticker];
+        switch(network.networkFamily){
+            case(NetworkFamily.Bitcoin):{
+                return this.#networkToKeyring[network.ticker];
+            }
+            case(NetworkFamily.EVM):{
+                return this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME];
+            }
+            case(NetworkFamily.Near):{
+                return this.#networkToKeyring[NEAR_FAMILY_KEYRING_NAME];
+            }
+            case(NetworkFamily.Solana):{
+                return this.#networkToKeyring[SOLANA_FAMILY_KEYRING_NAME];
+            }
+            default:{
+                return this.#networkToKeyring[network.ticker];
+            }
+        }
     }
 
     async signTransaction(
@@ -240,7 +278,25 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     networkOnSeedloop(network:Network):boolean{
-        return network.ticker in this.#networkToKeyring;
+        // account based families can share the same keyring
+        // tx based families like bitcoin should have a distinct keyring for every network
+        switch(network.networkFamily){
+            case(NetworkFamily.Bitcoin):{
+                return network.ticker in this.#networkToKeyring;
+            }
+            case(NetworkFamily.EVM):{
+                return EVM_FAMILY_KEYRING_NAME in this.#networkToKeyring;
+            }
+            case(NetworkFamily.Near):{
+                return NEAR_FAMILY_KEYRING_NAME in this.#networkToKeyring;
+            }
+            case(NetworkFamily.Solana):{
+                return SOLANA_FAMILY_KEYRING_NAME in this.#networkToKeyring;
+            }
+            default:{
+                return false;
+            }
+        }
     }
 
     async signTypedData(
@@ -270,6 +326,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         let addresses:string[] = await keyring.getAddresses();
         return addresses;
     }
+
     // add addresses to a given network
     async addAddresses(network:Network, n:number=1): Promise<string[]>{
         let keyring = await this.getKeyRing(network);
@@ -286,7 +343,11 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
     // gets all keyrings hanging on seedloop
     getAllKeyrings():HDKeyring[] {
-        return this.#keyrings;
+        let keyringsToReturn:HDKeyring[] = [];
+        for(const ticker in this.#networkToKeyring){
+            keyringsToReturn.push(this.#networkToKeyring[ticker]);
+        }
+        return keyringsToReturn;
     }
 
     #keyringValid(keyring:HDKeyring):boolean{
