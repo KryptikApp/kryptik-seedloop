@@ -107,30 +107,21 @@ export function truncateAddress(address: string, network:Network):string{
 }
 
 // validates blockchain address
-export function isValidAddress(address:string, network:Network):boolean{
-    switch(network.networkFamily){
-        case NetworkFamily.EVM: { 
-            try{
-                getAddress(address);
-                return true;
-            } 
-            catch(e){
-                return false;
-            }
-         } 
-         default: { 
-             // for now... just return true
-            return true;
-            break; 
-         } 
+export function isValidEVMAddress(address:string):boolean{
+    try{
+        getAddress(address);
+        return true;
+    } 
+    catch(e){
+        return false;
     }
 }
 
 // formats blockchain address
 export function formatAddress(address:string, network:Network):string{
-    if(!isValidAddress(address, network)) throw(Error("Invalid address was passed in!"));
     switch(network.networkFamily){
         case NetworkFamily.EVM: { 
+            if(!isValidEVMAddress(address)) throw(Error("Invalid address was passed in!"));
             return getAddress(address);
             break; 
          } 
