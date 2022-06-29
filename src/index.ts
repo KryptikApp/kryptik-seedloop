@@ -20,6 +20,7 @@ export {
   } from "./utils"
 
 export{
+    defaultNetworks,
     Network,
     NetworkFamily,
     NetworkParameters,
