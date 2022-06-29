@@ -3,6 +3,7 @@ import * as bip from "bip39"
 import { Network, NetworkFamily } from "./network"
 import { getAddress } from "@ethersproject/address";
 import * as ed25519 from "ed25519-hd-key"
+import { baseEncode } from "borsh";
 
 
 export function normalizeMnemonic(mnemonic: string): string {
@@ -137,6 +138,12 @@ export function createWalletSeed(path:string, mnemonic:string):Buffer{
     const seedBuffer = bip.mnemonicToSeedSync(mnemonic); 
     let key = ed25519.derivePath(path, Buffer.from(seedBuffer).toString('hex')).key;
     return key;
+}
+
+
+export function hexToBase58(hexString:string){
+    let buff = Buffer.from(hexString, "hex");
+    return baseEncode(buff);
 }
 
 
