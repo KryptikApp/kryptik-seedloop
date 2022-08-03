@@ -8,7 +8,7 @@ export enum NetworkFamily{
     // near compatible blockchains
     Near = 3,
     // COSMOS compatible blockchains
-    COSNOS = 4
+    Cosmos = 4
 }
 
 
