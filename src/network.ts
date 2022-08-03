@@ -6,7 +6,9 @@ export enum NetworkFamily{
     // general tx. based networks like BTC, LTC, etc.
     Bitcoin = 2,
     // near compatible blockchains
-    Near = 3
+    Near = 3,
+    // COSMOS compatible blockchains
+    COSNOS = 4
 }
 
 
