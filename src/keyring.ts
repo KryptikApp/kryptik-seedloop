@@ -207,7 +207,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
                  return this.generateED25519Address(seed, index, true);
              }
              default:{
-                 throw(Error(`Unable to generate address for wallet with network type: ${this.network.chainId}`));
+                 throw(Error(`Unable to generate address for: ${this.network.fullName}`));
              }
          }
     }
