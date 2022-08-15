@@ -157,12 +157,20 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             if(this.networkOnSeedloop(Network)) continue;
             // base hd path without child leaf
             let baseNetworkPath = getBasePath(Network.ticker, Network.chainId, Network.networkFamily);
+            // evm cahins should all share the same path + address
+            // based on eth path
+            let networkToAdd = Network;
+            if(Network.networkFamily == NetworkFamily.EVM){
+                let ethNetwork = NetworkFromTicker("eth");
+                baseNetworkPath = getBasePath(ethNetwork.ticker, ethNetwork.chainId, ethNetwork.networkFamily);
+                networkToAdd = ethNetwork
+            }
             // new hd key used for adding keyring
             let newHdKey = this.hdKey.derive(baseNetworkPath);
             let ringOptions:KeyringOptions = {
                 // default path is BIP-44 ethereum coin type
                 basePath: baseNetworkPath,
-                network: Network,
+                network: networkToAdd,
                 xpub: newHdKey.publicExtendedKey
             }
             // create new key ring for Network given setup options
