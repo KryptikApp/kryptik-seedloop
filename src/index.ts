@@ -1,20 +1,16 @@
-// the seed loop holds the seed and keyrings that share the common seed. Each keyring is responsible for a different coin.
-import * as bip from "bip39"
-import { HDNode } from "@ethersproject/hdnode"
-import { TypedDataDomain, TypedDataField } from "@ethersproject/abstract-signer"
-import * as bitcoin from 'bitcoinjs-lib'
+import { generateMnemonic, mnemonicToSeedSync } from "bip39";
+import bs58 from "bs58";
+import * as crypt from "crypto-js"
+import HDKey from "hdkey"
 
-import { Network, defaultNetworks, NetworkFamily } from "./network"
-import {TransactionParameters, WalletKryptik } from "./walletKryptik"
-import { validateAndFormatMnemonic } from "./utils"
-import { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
-import nacl from "tweetnacl"
-import { EVM_FAMILY_KEYRING_NAME, NEAR_FAMILY_KEYRING_NAME, SOLANA_FAMILY_KEYRING_NAME } from "./constants"
+import { Network, defaultNetworks, NetworkFromTicker, NetworkFamily, getBasePath} from "./network";
+import { validateAndFormatMnemonic } from "./utils";
+import { HDKeyring, SerializedHDKeyring, TransactionParameters } from "./keyring";
+import { COSMOS_FAMILY_KEYRING_NAME, EVM_FAMILY_KEYRING_NAME, NEAR_FAMILY_KEYRING_NAME, SOLANA_FAMILY_KEYRING_NAME } from "./constants";
 
 export {
     normalizeHexAddress,
     normalizeMnemonic,
-    toChecksumAddress,
     validateAndFormatMnemonic,
     isValidEVMAddress, truncateAddress, formatAddress
   } from "./utils"
@@ -29,203 +25,180 @@ export{
 }
 from "./network"
 
-
-export { HDKeyring, SerializedHDKeyring, Options, defaultOptions } from "./keyring"
-
-export {WalletKryptik, TransactionParameters } from "./walletKryptik"
+export {Account, CurveType} from "./account"
 
 
-export type SerializedSeedLoop = {
-    version: number
-    // TODO: 2x check to ensure null possibility is safe
-    mnemonic: string|null
-    // note: each key ring is SERIALIZED
-    keyrings: SerializedHDKeyring[]
+export { HDKeyring, SerializedHDKeyring, KeyringOptions, defaultKeyringOptions } from "./keyring"
+
+export type Options = {
+    strength?: number
+    path?: string
+    mnemonic?: string | null
+    network?: Network
+    isCreation?: boolean
+    isLocked?: boolean
+}
+
+export const defaultOptions = {
+  // default path is BIP-44, where depth 5 is the address index
+  path: "m/44'/60'/0'/0",
+  strength: 128,
+  mnemonic: null,
+  network: NetworkFromTicker("eth"),
+  passphrase: null,
+  isCreation: true,
+  parentNode:null,
+  isLocked:false
 }
 
 export interface SignedTransaction{
     evmFamilyTx?: string,
-    bitcoinFamilyTx?: bitcoin.Psbt
     solanaFamilyTx?: Uint8Array
     nearFamilyTx?: Uint8Array
 }
 
+export type SerializedSeedLoop = {
+    version: number
+    mnemonic: string|null
+    // note: each key ring is SERIALIZED
+    keyrings: SerializedHDKeyring[]
+    id:string
+    isLocked:boolean
+}
+
 
 export interface SeedLoop<T> {
-    serialize(): Promise<T>
-    getKeyRing(coin: Network): Promise<HDKeyring>
-    getKeyRingSync(coin: Network): HDKeyring
-    getAllKeyrings():HDKeyring[];
-    getWalletForAddress(network:Network, address:string):WalletKryptik|null
-    getAddresses(network: Network): Promise<string[]>
-    addAddresses(network: Network, n?: number): Promise<string[]>
-    addAddressesSync(network: Network, n?: number): string[]
-    addKeyRingByNetwork(network:Network):HDKeyring|null
-    getSeedPhrase():string|null
-    networkOnSeedloop(network:Network):boolean;
-    signTransaction(
-        address: string,
-        transaction: TransactionParameters,
-        network: Network
-    ): Promise<SignedTransaction>
-    signTypedData(
-        address: string,
-        domain: TypedDataDomain,
-        types: Record<string, Array<TypedDataField>>,
-        value: Record<string, unknown>,
-        network: Network
-    ): Promise<string>
-    signMessage(address: string, message: string, network: Network): Promise<string>
+    addAddresses(network: Network, n?: number): string[]
+    getAddresses(network: Network): string[]
+    getPublicKeyString(network:Network, address:string):string
+    networkOnSeedloop(network:Network):boolean
+    serialize(): T
+    addKeyRing(keyring: HDKeyring):void
+    keyringValid(keyring: HDKeyring):boolean
+    getKeyRing(network:Network):HDKeyring
+    signMessage(address:string,
+        message:string,
+        network:Network):string
+    lock(password:string):void
+    unlock(password:string):boolean
+    getMnemonic():string|null
 }
 
-export interface KeyringClass<T> {
-    new(): SeedLoop<T>
-    deserialize(serializedKeyring: T): Promise<SeedLoop<T>>
-}
 
 export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     readonly id: string
-    #networkToKeyring : {[name:string]: HDKeyring} = {}
-    
-    #mnemonic: string | null
-    #hdNode: HDNode
+    private networkToKeyring: {[name:string]: HDKeyring} = {}
+    private hdKey:HDKey
+    public xpub:string
+    private mnemonic: string|null
+    private mnemonicCipherText: string|null = null;
+    private isLocked: boolean = false;
+    private SerializedKeyringCache:SerializedHDKeyring[] = []
 
     constructor(options: Options = {}, networks:Network[]=Object.values(defaultNetworks)) {
         const hdOptions: Required<Options> = {
             ...defaultOptions,
             ...options,
         }
-
-        this.#mnemonic = validateAndFormatMnemonic(
-            hdOptions.mnemonic || bip.generateMnemonic(hdOptions.strength)
+        const mnemonic = validateAndFormatMnemonic(
+            hdOptions.mnemonic || generateMnemonic(hdOptions.strength)
         )
-        
+
         // if error occured when creating mnemonic
-        if (!this.#mnemonic) {
+        if(!mnemonic) {
             throw new Error("Invalid mnemonic.")
         }
-        
-        // set passphrase
-        const passphrase = hdOptions.passphrase ?? "";
 
-        // set hdnode
-        this.#hdNode = HDNode.fromMnemonic(this.#mnemonic, passphrase, "en");
-        this.id = this.#hdNode.fingerprint;
+        this.mnemonic = mnemonic;
 
-        // only populate with new keyrings if keyrings haven't already been created and serialized
-        if (hdOptions.isCreation) {
-            this.#populateLoopKeyrings(hdOptions, networks);
-        }
+        this.hdKey = HDKey.fromMasterSeed(mnemonicToSeedSync(this.mnemonic));
+        this.xpub = this.hdKey.publicExtendedKey;
         
+        this.id = bs58.encode(this.hdKey.publicKey)
+
+        // populate seedloop with keyrings
+        this.populateLoopKeyrings(networks);
     }
 
     // populate seed loop with keyrings for supported Networks
-    #populateLoopKeyrings(options:Options, networks:Network[]=Object.values(defaultNetworks)) {
+    private populateLoopKeyrings(networks:Network[]=Object.values(defaultNetworks)) {
+        if(!this.mnemonic){
+            throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+        }
         for (const Network of networks) {
-            let networkPath:string = Network.path;
             // if the network is already on the seedloop.. move on to the next network
             if(this.networkOnSeedloop(Network)) continue;
-            // if EVM family... use same path, so address is consistent across chains
-            // default path is bip44 standard for Ethereum
-            if(Network.networkFamily == NetworkFamily.EVM){
-                networkPath = defaultOptions.path;
-            }
-            let ringOptions:Options = {
+            // base hd path without child leaf
+            let baseNetworkPath = getBasePath(Network.ticker, Network.chainId, Network.networkFamily);
+            // new hd key used for adding keyring
+            let newHdKey = this.hdKey.derive(baseNetworkPath);
+            let ringOptions = {
                 // default path is BIP-44 ethereum coin type
-                path: networkPath,
-                passphrase: options.passphrase,
+                basePath: baseNetworkPath,
                 strength: 128,
-                mnemonic: this.#mnemonic,
                 network: Network,
-                parentNode: this.#hdNode
+                xpub:newHdKey.publicExtendedKey
             }
             // create new key ring for Network given setup options
             var keyRing: HDKeyring = new HDKeyring(ringOptions);
+            const seed = mnemonicToSeedSync(this.mnemonic)
              // add init addresses sync.
-            keyRing.addAddressesSync();
+            keyRing.addAddresses(seed);
             // add key ring to seed loop 
             this.addKeyRing(keyRing);
         }
     }
 
-    addKeyRingByNetwork(network:Network):HDKeyring{
-        if(this.networkOnSeedloop(network)) return this.getKeyRingSync(network);
-        let networkPath = network.path;
-        if(network.networkFamily == NetworkFamily.EVM){
-            networkPath = defaultOptions.path;
-        }
-        let ringOptions:Options = {
-            path: networkPath,
-            strength: 128,
-            mnemonic: this.#mnemonic,
-            network: network
-        }
-        // create new key ring for Network given setup options
-        var keyRing: HDKeyring = new HDKeyring(ringOptions);
-         // add init addresses sync.
-        keyRing.addAddressesSync();
-        // add key ring to seed loop 
-        this.addKeyRing(keyRing);
-        return keyRing;
-    }
-
-    // SERIALIZE CODE
-    serializeSync(): SerializedSeedLoop{
-        let serializedKeyRings: SerializedHDKeyring[] = []
-        // serialize the key ring for every coin that's on the seed loop and add to serialized list output
-        for (let ticker in this.#networkToKeyring)
-        {
-            var keyring: HDKeyring = this.#networkToKeyring[ticker]
-            var serializedKeyRing: SerializedHDKeyring = keyring.serializeSync()
-            serializedKeyRings.push(serializedKeyRing)
-        }
-        return {
-            version: 1,
-            mnemonic: this.#mnemonic,
-            keyrings: serializedKeyRings
-        }
-    }
-    
-    // async version of serialize
-    async serialize(): Promise<SerializedSeedLoop> {
-        return this.serializeSync()
-    }
-
-    // add keyring to dictionary and list of fellow key rings
-    addKeyRing(keyring: HDKeyring) {
-        let network:Network = keyring.network;
+    networkOnSeedloop(network:Network):boolean{
+        // account based families can share the same keyring
+        // tx based families like bitcoin should have a distinct keyring for every network
+        if(!network) throw(new Error("Error: network not provided. Unable to check if network is on seedloop."));
         switch(network.networkFamily){
             case(NetworkFamily.Bitcoin):{
-                this.#networkToKeyring[network.ticker] = keyring;
-                break;
+                return network.ticker in this.networkToKeyring;
             }
             case(NetworkFamily.EVM):{
-                this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME] = keyring;
-                keyring
-                break;
+                return EVM_FAMILY_KEYRING_NAME in this.networkToKeyring;
             }
             case(NetworkFamily.Near):{
-                this.#networkToKeyring[NEAR_FAMILY_KEYRING_NAME] = keyring;
-                break;
+                return NEAR_FAMILY_KEYRING_NAME in this.networkToKeyring;
             }
             case(NetworkFamily.Solana):{
-                this.#networkToKeyring[SOLANA_FAMILY_KEYRING_NAME] = keyring;
-                break;
+                return SOLANA_FAMILY_KEYRING_NAME in this.networkToKeyring;
+            }
+            case(NetworkFamily.Cosmos):{
+                return COSMOS_FAMILY_KEYRING_NAME in this.networkToKeyring;
             }
             default:{
-                this.#networkToKeyring[network.ticker] = keyring;
-                break;
+                return false;
             }
         }
     }
 
-    // DESERIALIZE CODE
+    // SERIALIZE SEEDLOOP
+    serialize(): SerializedSeedLoop{
+       let serializedKeyRings: SerializedHDKeyring[] = []
+       // serialize the key ring for every coin that's on the seed loop and add to serialized list output
+       for (let ticker in this.networkToKeyring)
+       {
+           let keyring: HDKeyring = this.networkToKeyring[ticker]
+           let serializedKeyRing:SerializedHDKeyring = keyring.serialize()
+           serializedKeyRings.push(serializedKeyRing)
+       }
+       return {
+           version: 1,
+           mnemonic: this.mnemonic,
+           keyrings: serializedKeyRings,
+           id: this.id,
+           isLocked: this.isLocked
+       }
+    }
+
     static deserialize(obj: SerializedSeedLoop): HDSeedLoop {
-        const { version, mnemonic, keyrings } = obj
+        const { version, mnemonic, keyrings, id, isLocked } = obj
         if (version !== 1) {
             throw new Error(`Unknown serialization version ${obj.version}`)
         }
-
         // create loop options with pre-existing mnemonic
         // TODO add null check for mnemonic
         let loopOptions = {
@@ -236,43 +209,123 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         }
         // create seed loop that will eventually be returned.
         var seedLoopNew: HDSeedLoop = new HDSeedLoop(loopOptions)
-        // deserialize keyrings
-        keyrings.forEach(function (serializedKeyRing) {
-            var keyRing: HDKeyring = HDKeyring.deserialize(serializedKeyRing);
-            seedLoopNew.addKeyRing(keyRing);
-        })     
+        // ensure HDnode matches original
+        if(seedLoopNew.id != id) throw  new Error("The deserialized keyring fingerprint does not match the original.");
+        // can't deserialize seedloop's keyrings when locked
+        if(isLocked){
+            for(const sk of keyrings){
+                seedLoopNew.addToSerializedKeyringCache(sk);
+            }
+            return seedLoopNew;
+        }
+        if(!mnemonic) {
+            throw new Error("Error: No mnemonic exists on this seedloop. Required for address generation.")
+        }
+        else{
+            let seed = mnemonicToSeedSync(mnemonic);
+            // deserialize keyrings
+            for(const sk of keyrings){
+                const keyRing:HDKeyring = HDKeyring.deserialize(seed, sk);
+                seedLoopNew.addKeyRing(keyRing);
+            }
+        }
         return seedLoopNew;
     }
 
-    getSeedPhrase():string|null{
-        return this.#mnemonic;
-    }
-
-    async getKeyRing(network: Network): Promise<HDKeyring> {
-        let keyringToReturn:HDKeyring = this.getKeyRingSync(network);
-        return keyringToReturn;
-    }
-    getKeyRingSync(network: Network): HDKeyring {
-        let keyringToReturn:HDKeyring;
+    // add keyring to dictionary and list of fellow key rings
+    addKeyRing(keyring: HDKeyring) {
+        let network:Network = keyring.network;
         switch(network.networkFamily){
             case(NetworkFamily.Bitcoin):{
-                keyringToReturn = this.#networkToKeyring[network.ticker];
+                this.networkToKeyring[network.ticker] = keyring;
                 break;
             }
             case(NetworkFamily.EVM):{
-                keyringToReturn = this.#networkToKeyring[EVM_FAMILY_KEYRING_NAME];
+                this.networkToKeyring[EVM_FAMILY_KEYRING_NAME] = keyring;
+                keyring
                 break;
             }
             case(NetworkFamily.Near):{
-                keyringToReturn = this.#networkToKeyring[NEAR_FAMILY_KEYRING_NAME];
+                this.networkToKeyring[NEAR_FAMILY_KEYRING_NAME] = keyring;
                 break;
             }
             case(NetworkFamily.Solana):{
-                keyringToReturn = this.#networkToKeyring[SOLANA_FAMILY_KEYRING_NAME];
+                this.networkToKeyring[SOLANA_FAMILY_KEYRING_NAME] = keyring;
                 break;
             }
             default:{
-                keyringToReturn = this.#networkToKeyring[network.ticker];
+                this.networkToKeyring[network.ticker] = keyring;
+                break;
+            }
+        }
+    }
+
+    getPublicKeyString(network:Network, address:string):string{
+        let keyring = this.getKeyRing(network);
+        if(this.isLocked && this.SerializedKeyringCache.length==0){
+            throw(new Error("Error: Seedloop is locked and cache is full. Please unlock the seedloop, before fetching addresses."))
+        }
+        if(!this.mnemonic) {
+            throw new Error("Error: No mnemonic exists on this seedloop. Required for address generation.")
+        }
+        let seed = mnemonicToSeedSync(this.mnemonic)
+        if(!this.keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+        let pubKeyString:string = keyring.getPublicKeyString(seed, address)
+        return pubKeyString;
+    }
+
+    getAddresses(network:Network):string[]{
+        // this error will throw if we have deserizlized a locked seedloop and fetch addresses
+        // consumers can handle this error by casing om msg (checking for 'locked') and unlocking
+        if(this.isLocked && this.SerializedKeyringCache.length==0){
+            throw(new Error("Error: Seedloop is locked and cache is full. Please unlock the seedloop, before fetching addresses."))
+        }
+        let keyring = this.getKeyRing(network);
+        if(!this.keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+        let addresses:string[] = keyring.getAddresses();
+        return addresses;
+    }
+
+    addAddresses(network: Network, n?: number | undefined): string[]{
+        if(this.isLocked){
+            throw(new Error("Error: Seedloop is locked. Please unlock the seedloop, before adding addresses."))
+        }
+        if(!this.mnemonic) {
+            throw new Error("Error: No mnemonic exists on this seedloop. Required for address generation.")
+        }
+        let keyring = this.getKeyRing(network);
+        if(!this.keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
+       
+        let seed = mnemonicToSeedSync(this.mnemonic)
+        let addresses:string[] = keyring.addAddresses(seed ,n);
+        return addresses;
+    }
+
+    keyringValid(keyring:HDKeyring):boolean{
+        return keyring!=undefined;
+    }
+
+    getKeyRing(network:Network):HDKeyring{
+        let keyringToReturn:HDKeyring;
+        switch(network.networkFamily){
+            case(NetworkFamily.Bitcoin):{
+                keyringToReturn = this.networkToKeyring[network.ticker];
+                break;
+            }
+            case(NetworkFamily.EVM):{
+                keyringToReturn = this.networkToKeyring[EVM_FAMILY_KEYRING_NAME];
+                break;
+            }
+            case(NetworkFamily.Near):{
+                keyringToReturn = this.networkToKeyring[NEAR_FAMILY_KEYRING_NAME];
+                break;
+            }
+            case(NetworkFamily.Solana):{
+                keyringToReturn = this.networkToKeyring[SOLANA_FAMILY_KEYRING_NAME];
+                break;
+            }
+            default:{
+                keyringToReturn = this.networkToKeyring[network.ticker];
                 break;
             }
         }
@@ -280,105 +333,95 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return keyringToReturn;
     }
 
+    signMessage(address:string,
+        message:string,
+        network:Network):string{
+        if(this.isLocked){
+            throw(new Error("Error: Seedloop is locked. Please unlock the seedloop, before signing."))
+        }
+        if(!this.mnemonic) {
+            throw new Error("Error: No mnemonic exists on this seedloop. Required for signatures.")
+        }
+        let keyring = this.getKeyRing(network);
+        let seed = mnemonicToSeedSync(this.mnemonic);
+        let signedMsg = keyring.signMessage(seed, address, message);
+        return signedMsg;
+    }
+
+    // routes transaction to correct signer
     async signTransaction(
         address: string,
         transaction: TransactionParameters,
         network = defaultNetworks.eth
       ): Promise<SignedTransaction> {
-        let keyring = await this.getKeyRing(network);
-        let signedTransaction = await keyring.signTransaction(address, transaction)
+        if(this.isLocked){
+            throw(new Error("Error: Seedloop is locked. Please unlock the seedloop, before signing."))
+        }
+        if (!this.mnemonic) {
+            throw new Error("Error: No mnemonic exists on this seedloop. Required for address generation.")
+        }
+        let keyring = this.getKeyRing(network);
+        let seed = mnemonicToSeedSync(this.mnemonic)
+        let signedTransaction = await keyring.signTransaction(address, seed,  transaction);
         return signedTransaction;
     }
 
-    networkOnSeedloop(network:Network):boolean{
-        // account based families can share the same keyring
-        // tx based families like bitcoin should have a distinct keyring for every network
-        if(!network) throw(new Error("Error: network not provided. Unable to check if network is on seedloop."));
-        switch(network.networkFamily){
-            case(NetworkFamily.Bitcoin):{
-                return network.ticker in this.#networkToKeyring;
-            }
-            case(NetworkFamily.EVM):{
-                return EVM_FAMILY_KEYRING_NAME in this.#networkToKeyring;
-            }
-            case(NetworkFamily.Near):{
-                return NEAR_FAMILY_KEYRING_NAME in this.#networkToKeyring;
-            }
-            case(NetworkFamily.Solana):{
-                return SOLANA_FAMILY_KEYRING_NAME in this.#networkToKeyring;
-            }
-            default:{
-                return false;
-            }
+    // encrypts wallet seed with a given password
+    lock(password:string){
+        if(!this.mnemonic) {
+            // something must be wrong if locking with mnemonic as null
+            throw new Error("Error: No mnemonic exists on this seedloop. Required to lock seedloop.")
+        }
+        const encryptedMnemonic = crypt.AES.encrypt(this.mnemonic, password).toString();
+        this.isLocked = true;
+        this.mnemonicCipherText = encryptedMnemonic;
+        this.mnemonic = null;
+    }
+
+    unlock(password:string):boolean{
+        // if already unlocked, return true
+        if(!this.isLocked) return true;
+        let formattedMnemonic:string|null;
+        if(!this.mnemonicCipherText) {
+            // we need the ciphertext to decrypt
+            throw new Error("Error: No mnemonic ciphertext exists on this seedloop. P.")
+        }
+        try{
+            const decryptedMnemonic = crypt.AES.decrypt(this.mnemonicCipherText, password).toString(crypt.enc.Utf8);
+            formattedMnemonic = validateAndFormatMnemonic(decryptedMnemonic)
+        }
+        /// unable to decrypt
+        catch(e){
+            return false;
+        }
+        // not a valid mnemonic
+        if(!formattedMnemonic) return false;
+        // decryption worked! update state.
+        this.clearSerializedKeyringCache(formattedMnemonic);
+        this.mnemonic = formattedMnemonic;
+        this.mnemonicCipherText = null;
+        this.isLocked = false;
+        return true;
+    }
+
+    addToSerializedKeyringCache(newSerializedKeyring:SerializedHDKeyring){
+        this.SerializedKeyringCache.push(newSerializedKeyring)
+    }
+
+    // wrapper around mnemonic state, as mnemonic is a private variable
+    getMnemonic():string|null{
+        return this.mnemonic;
+    }
+
+    private clearSerializedKeyringCache(mnemonic:string){
+        // don't clear cache if locked... will need to deserialize later
+        if(this.isLocked) return;
+        this.SerializedKeyringCache = [];
+        const seed = mnemonicToSeedSync(mnemonic)
+        for(const sk of this.SerializedKeyringCache){
+            const keyRing:HDKeyring = HDKeyring.deserialize(seed, sk);
+            this.addKeyRing(keyRing);
         }
     }
-
-    async signTypedData(
-        address: string,
-        domain: TypedDataDomain,
-        types: Record<string, Array<TypedDataField>>,
-        value: Record<string, unknown>,
-        network = defaultNetworks.eth
-      ): Promise<string> {
-        let keyring = await this.getKeyRing(network);
-        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        if(network.networkFamily!=NetworkFamily.EVM) throw Error("Signing typed data not supported for non EVM chains yet.");
-        let signedTypedData:string = await keyring.signTypedData(address, domain, types, value);
-        return signedTypedData;
-    }
-
-    async signMessage(address: string, message: string, network=defaultNetworks.eth): Promise<string> {
-        let keyring = await this.getKeyRing(network);
-        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let signedMessage:string = await keyring.signMessage(address, message);
-        return signedMessage;
-    }
-
-    async getAddresses(network:Network): Promise<string[]>{
-        let keyring = await this.getKeyRing(network);
-        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let addresses:string[] = await keyring.getAddresses();
-        return addresses;
-    }
-
-    // add addresses to a given network
-    async addAddresses(network:Network, n:number=1): Promise<string[]>{
-        let keyring = await this.getKeyRing(network);
-        if(!this.#keyringValid) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let addresses:string[] = await keyring.addAddresses(n);
-        return addresses;
-    }
-    // add addresses to a given network synchronously
-    addAddressesSync(network:Network, n:number=1): string[]{
-        let keyring = this.getKeyRingSync(network);
-        if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let addresses:string[] = keyring.addAddressesSync(n);
-        return addresses;
-    }
-    // gets all keyrings hanging on seedloop
-    getAllKeyrings():HDKeyring[] {
-        let keyringsToReturn:HDKeyring[] = [];
-        for(const ticker in this.#networkToKeyring){
-            keyringsToReturn.push(this.#networkToKeyring[ticker]);
-        }
-        return keyringsToReturn;
-    }
-
-    #keyringValid(keyring:HDKeyring):boolean{
-        return keyring!=undefined;
-    }
-
-    getWalletForAddress(network:Network, address:string):WalletKryptik|null{
-        let keyring = this.getKeyRingSync(network);
-        if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let walletToReturn:WalletKryptik|null = keyring.getWalletSync(address);
-        return walletToReturn;
-    }
-
-    getKeypairForAddress(network:Network, address:string):nacl.SignKeyPair|null{
-        let keyring = this.getKeyRingSync(network);
-        if(!this.#keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let keypairToReturn:nacl.SignKeyPair|null = keyring.getKeypairSync(address);
-        return keypairToReturn;
-    }
+    
 }

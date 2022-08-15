@@ -49,7 +49,6 @@ export interface INetwork{
 export interface NetworkParameters{
     fullName: string,
     ticker: string,
-    path?:string,
     chainId?:number,
     networkFamilyName?:string
 }
@@ -57,8 +56,10 @@ export interface NetworkParameters{
 export class Network{
     readonly fullName: string
     readonly ticker: string
-    // base path used for hdnode derivation
+    // path used for hdnode derivation
     readonly path: string
+    // base path without child node index
+    readonly basePath:string
     // BIP-44 coin code
     readonly chainId: number
     readonly networkFamily:number
@@ -68,7 +69,8 @@ export class Network{
         this.ticker = networkParams.ticker.toLowerCase();
         this.chainId = networkParams.chainId? networkParams.chainId : this.getChainId();
         this.networkFamily = networkParams.networkFamilyName? NetworkFamilyFromFamilyName(networkParams.networkFamilyName):this.getNetworkfamily();
-        this.path =  networkParams.path? networkParams.path : getPath(this.ticker, networkParams.chainId, this.networkFamily);
+        this.basePath = getBasePath(networkParams.ticker, networkParams.chainId, this.networkFamily);
+        this.path = getFullPath(this.basePath, this.networkFamily);
     }
 
     // returns network family for given chain
@@ -108,8 +110,8 @@ export function NetworkFromTicker(ticker: string): Network{
     }
 }
 
-// builds coin path based on BIP-44 standard
-export function getPath(ticker:string, chainCodeIn?:number, networkFamily?:NetworkFamily, depth=0): string{
+//gets base path (full path minus account index)
+export function getBasePath(ticker:string, chainCodeIn?:number, networkFamily?:NetworkFamily):string{
     let chainCode:number;
     if(chainCodeIn){
         chainCode = chainCodeIn
@@ -118,21 +120,33 @@ export function getPath(ticker:string, chainCodeIn?:number, networkFamily?:Netwo
         let networkInfo:NetworkInfo = NetworkInfoDict[ticker];
         chainCode = networkInfo.chainCode;
     }
-    let path = `m/44'/${chainCode}'/0'/${depth}`;
-    // special cases for sol family networks WHICH USE ED CURVE 
-    if(ticker && networkFamily && (networkFamily == NetworkFamily.Solana || NetworkFamily.Near)){
+    let basePath = `m/44'/${chainCode}'/0'/0`;
+    if(networkFamily && (networkFamily == NetworkFamily.Solana || NetworkFamily.Near)){
         switch(ticker.toLowerCase()){
             case("near"):{
-                path = `m/44'/${chainCode}'/${depth}'`
+                basePath = `m/44'/${chainCode}'`
                 break;
             }
             default:{
-                path = `m/44'/${chainCode}'/0'/${depth}'`
+                basePath = `m/44'/${chainCode}'/0'`
             }
         }
     }
+    return basePath;
+}
+
+// builds coin path based on BIP-44 standard
+// NOTE: standard full eth path is: m/44'/60'/0'/0/0
+export function getFullPath(basePath:string, networkFamily?:NetworkFamily, depth=0): string{
+    let path = basePath + `/${depth}`;
+    // special cases for sol family networks WHICH USE DIFFERENT PATH DERIVATION SCHEMES
+    if((networkFamily == NetworkFamily.Solana || networkFamily == NetworkFamily.Near)){
+        path = basePath + `/${depth}'`
+    }
     return path;
 }
+
+
 
 export function NetworkFamilyFromFamilyName(familyName:string):NetworkFamily{
     switch(familyName.toLowerCase()){
@@ -151,6 +165,9 @@ export function NetworkFamilyFromFamilyName(familyName:string):NetworkFamily{
         case "near":{
             return NetworkFamily.Near;
             break;
+        }
+        case "cosmos":{
+            return NetworkFamily.Cosmos
         }
         default:{
             // return evm network family as default 

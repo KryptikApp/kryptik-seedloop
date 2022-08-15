@@ -1,6 +1,6 @@
 {
   "name": "hdseedloop",
-  "version": "0.5.3",
+  "version": "0.5.5",
   "description": "A public, private key manager for cross chain assets.",
   "repository": "https://github.com/KryptikApp/kryptik-seedloop",
   "author": "jettblu <jettblu.fabrications@gmail.com>",
@@ -10,80 +10,34 @@
     "manager",
     "crypto"
   ],
+  "type": "module",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "src"
-  ],
-  "engines": {
-    "node": ">=10"
-  },
-  "scripts": {
-    "featuretest": "dts test features.test.ts",
-    "keyringtest": "dts test keyring.test.ts",
-    "seedlooptest": "dts test seedloop.test.ts",
-    "start": "dts watch",
-    "build": "dts build",
-    "test": "dts test",
-    "lint": "eslint . --ext ts",
-    "lint:fix": "eslint . --fix --ext ts",
-    "prepare": "dts build",
-    "size": "size-limit",
-    "analyze": "size-limit --why"
-  },
-  "peerDependencies": {},
-  "husky": {
-    "hooks": {
-      "pre-commit": "dts lint"
-    }
-  },
   "module": "dist/kryptik-seedloop.esm.js",
-  "size-limit": [
-    {
-      "path": "dist/kryptik-seedloop.cjs.production.min.js",
-      "limit": "250 KB"
-    },
-    {
-      "path": "dist/kryptik-seedloop.esm.js",
-      "limit": "250 KB"
-    }
-  ],
+  "scripts": {
+    "test": "vitest",
+    "build": "tsc"
+  },
   "devDependencies": {
-    "@ethersproject/transactions": "^5.4.0",
-    "@thesis-co/eslint-config": "^0.1.0",
-    "@typescript-eslint/eslint-plugin": "^4.29.3",
-    "@typescript-eslint/parser": "^4.29.3",
-    "dts-cli": "^0.19.2",
-    "husky": "^7.0.2",
-    "size-limit": "^5.0.3",
-    "tslib": "^2.3.1",
-    "typescript": "^4.4.3"
+    "typescript": "^4.7.4",
+    "vitest": "^0.21.1"
   },
   "dependencies": {
-    "@ethersproject/abstract-provider": "^5.4.0",
-    "@ethersproject/abstract-signer": "^5.4.0",
-    "@ethersproject/bytes": "^5.4.0",
-    "@ethersproject/hdnode": "^5.4.0",
-    "@ethersproject/json-wallets": "5.4.0",
-    "@ethersproject/keccak256": "^5.4.0",
-    "@ethersproject/properties": "^5.4.0",
-    "@ethersproject/providers": "^5.6.8",
-    "@ethersproject/random": "^5.6.0",
-    "@ethersproject/signing-key": "^5.4.0",
-    "@ethersproject/wallet": "5.4.0",
-    "@ethersproject/wordlists": "^5.4.0",
-    "@solana/web3.js": "^1.37.0",
-    "@types/babel__core": "^7.1.19",
-    "@types/elliptic": "^6.4.14",
-    "@types/secp256k1": "^4.0.3",
+    "@ethersproject/abstract-provider": "^5.6.1",
+    "@ethersproject/hash": "^5.6.1",
+    "@ethersproject/properties": "^5.6.0",
+    "@ethersproject/signing-key": "^5.6.2",
+    "@ethersproject/transactions": "^5.6.2",
+    "@noble/hashes": "^1.1.2",
+    "@types/crypto-js": "^4.1.1",
+    "@types/hdkey": "^2.0.1",
     "bip39": "^3.0.4",
-    "bitcoinjs-lib": "^6.0.1",
-    "ecpair": "^2.0.1",
-    "ed25519-hd-key": "^1.2.0",
-    "elliptic": "^6.5.4",
-    "near-api-js": "^0.45.1",
+    "bs58": "^5.0.0",
+    "crypto-js": "^4.1.1",
+    "ed25519-hd-key": "^1.3.0",
+    "ethereumjs-util": "^7.1.5",
+    "hdkey": "^2.0.1",
     "tweetnacl": "^1.0.3"
   }
 }

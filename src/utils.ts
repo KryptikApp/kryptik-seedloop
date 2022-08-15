@@ -1,9 +1,8 @@
-import { keccak256 } from "@ethersproject/keccak256"
-import * as bip from "bip39"
-import { Network, NetworkFamily } from "./network"
-import { getAddress } from "@ethersproject/address";
+import { mnemonicToSeedSync, validateMnemonic } from "bip39"
+import base58 from "bs58"
 import * as ed25519 from "ed25519-hd-key"
-import { baseEncode } from "borsh";
+import { getAddress } from "@ethersproject/address";
+import { Network, NetworkFamily } from "./network"
 
 
 export function normalizeMnemonic(mnemonic: string): string {
@@ -16,10 +15,10 @@ export function validateAndFormatMnemonic(
 ): string | null {
     const normalized = normalizeMnemonic(mnemonic)
 
-    if (bip.validateMnemonic(normalized, wordlist)) {
+    if (validateMnemonic(normalized, wordlist)) {
         return normalized
     }
-    return null
+    return null;
 }
 
 export function normalizeHexAddress(address: string | Buffer): string {
@@ -32,39 +31,14 @@ export function normalizeHexAddress(address: string | Buffer): string {
     return `0x${Buffer.from(even, "hex").toString("hex")}`
 }
 
-//extracts chain id from BIP-044 compatible path
-export function getChainIdFromPath(path:string):string{
-    const pathParts = path.split('/');
-    // get chain id
-    var chainId:string = pathParts[2];
-    // remove apostraphe added for hardened path
-    chainId = chainId.replace("'", "");
-    return chainId;
+
+export function createEd25519SecretKey(fullPath:string, seed:Buffer){
+    const key = ed25519.derivePath(fullPath, seed.toString('hex')).key;
+    return key;
 }
 
-export function toChecksumAddress(address: string, chainId?: number): string {
-    const whitelistedChainIds = [30, 31]
-    const addressWithOutPrefix = normalizeHexAddress(address)
-      .replace("0x", "")
-      .toLowerCase()
-    const prefix =
-      chainId && whitelistedChainIds.includes(chainId) ? `${chainId}0x` : ""
-    const hash = keccak256(
-      Buffer.from(`${prefix}${addressWithOutPrefix}`, "ascii")
-    ).replace("0x", "")
-  
-    const checkSum = Array.from(addressWithOutPrefix)
-      .map((_, index): string => {
-        if (parseInt(hash[index], 16) >= 8) {
-          return addressWithOutPrefix[index].toUpperCase()
-        }
-        return addressWithOutPrefix[index]
-      })
-      .join("")
-  
-    return `0x${checkSum}`
-  }
 
+// ----- address and seed utils -----
 
 // Captures 0x + 4 characters, then the last 4 characters.
 const truncateRegexEth = /^(0x[a-zA-Z0-9]{4})[a-zA-Z0-9]+([a-zA-Z0-9]{4})$/;
@@ -135,7 +109,7 @@ export function formatAddress(address:string, network:Network):string{
 }
 
 export function createWalletSeed(path:string, mnemonic:string):Buffer{
-    const seedBuffer = bip.mnemonicToSeedSync(mnemonic); 
+    const seedBuffer = mnemonicToSeedSync(mnemonic); 
     let key = ed25519.derivePath(path, Buffer.from(seedBuffer).toString('hex')).key;
     return key;
 }
@@ -143,7 +117,8 @@ export function createWalletSeed(path:string, mnemonic:string):Buffer{
 
 export function hexToBase58(hexString:string){
     let buff = Buffer.from(hexString, "hex");
-    return baseEncode(buff);
+    return base58.encode(buff);
 }
+
 
 
