@@ -34,6 +34,7 @@ export type Options = {
     strength?: number
     path?: string
     mnemonic?: string | null
+    mnemonicCipherText?: string | null
     network?: Network
     isCreation?: boolean
     isLocked?: boolean
@@ -45,6 +46,7 @@ export const defaultOptions = {
   path: "m/44'/60'/0'/0",
   strength: 128,
   mnemonic: null,
+  mnemonicCipherText:null,
   network: NetworkFromTicker("eth"),
   passphrase: null,
   isCreation: true,
@@ -61,6 +63,7 @@ export interface SignedTransaction{
 export type SerializedSeedLoop = {
     version: number
     mnemonic: string|null
+    mnemonicCipherText: string|null
     // note: each key ring is SERIALIZED
     keyrings: SerializedHDKeyring[]
     id:string
@@ -83,6 +86,7 @@ export interface SeedLoop<T> {
         network:Network):string
     lock(password:string):void
     unlock(password:string):boolean
+    getIsLocked():boolean
     getSeedPhrase():string|null
 }
 
@@ -108,6 +112,10 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             if(!hdOptions.xpub){
                 throw(new Error("Error: extended public key is missing. Needed when deserializing a locked seedloop."))
             }
+            if(!hdOptions.mnemonicCipherText){
+                throw(new Error("Error: mnemonic ciphertext is missing. Needed when deserializing a locked seedloop."))
+            }
+            this.mnemonicCipherText = hdOptions.mnemonicCipherText;
             this.xpub = hdOptions.xpub;
             let newPubHdKey = HDKey.fromExtendedKey(this.xpub);
             this.id = encode(newPubHdKey.publicKey)
@@ -208,12 +216,13 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
            keyrings: serializedKeyRings,
            id: this.id,
            xpub:this.xpub,
+           mnemonicCipherText:this.mnemonicCipherText,
            isLocked: this.isLocked
        }
     }
 
     static deserialize(obj: SerializedSeedLoop): HDSeedLoop {
-        const { version, mnemonic, keyrings, id, isLocked, xpub } = obj
+        const { version, mnemonic, keyrings, id, isLocked, xpub, mnemonicCipherText } = obj
         if (version !== 1) {
             throw new Error(`Unknown serialization version ${obj.version}`)
         }
@@ -223,6 +232,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             // default path is BIP-44 ethereum coin type, where depth 5 is the address index
             strength: 128,
             mnemonic: mnemonic,
+            mnemonicCipherText: mnemonicCipherText,
             isCreation: false,
             isLocked: isLocked,
             xpub:xpub
@@ -427,7 +437,6 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     getIsLocked():boolean{
         return this.isLocked;
     }
-
 
     // wrapper around mnemonic state, as mnemonic is a private variable
     getSeedPhrase():string|null{

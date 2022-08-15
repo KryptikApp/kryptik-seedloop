@@ -211,6 +211,29 @@ describe("Test Seedloop Features", () => {
     }
   })
 
+  it(("locks and unlocks seedloop. can then create proper signature."), ()=>{
+    const originalMnemonic = validMnemonics[0];
+    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    for(const passphrase of testPassphrases){
+      seedloop.lock(passphrase);
+      let mnemonic = seedloop.getSeedPhrase()
+      expect(mnemonic).toBeNull();
+      let unlocked = seedloop.unlock(passphrase);
+      expect(unlocked).toBeTruthy();
+      mnemonic = seedloop.getSeedPhrase()
+      expect(mnemonic).toEqual(originalMnemonic);
+      // test signature after unlock
+      const networkEth = NetworkFromTicker("eth");
+      const addresses = seedloop.getAddresses(networkEth);
+      for(const address of addresses){
+        const message = "recoverThisMessage"
+        const sig = seedloop.signMessage(address, message, networkEth);
+        let recoveredAddress = recoverAddress(hashMessage(message), sig).toLowerCase();
+        expect(recoveredAddress).toEqual(address)
+      }
+    }
+  })
+
   it(("can fetch addresses from locked seedloop"), ()=>{
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
     let networkNear = NetworkFromTicker("near");
@@ -234,6 +257,28 @@ describe("Test Seedloop Features", () => {
     seedloop = HDSeedLoop.deserialize(serializedloop);
     let lockedAddresses = seedloop.getAddresses(networkNear);
     expect(lockedAddresses).toStrictEqual(unlockedAddresses);
+  })
+
+  it(("can unlock seedloop that was serialized when locked"), ()=>{
+    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let passphrase = "testingphrase"
+    // lock and serialize
+    seedloop.lock(passphrase);
+    let serializedloop = seedloop.serialize();
+    // deserialize
+    seedloop = HDSeedLoop.deserialize(serializedloop);
+    let unlocked = seedloop.unlock(passphrase);
+    expect(unlocked).toBeTruthy();
+  })
+
+  it(("fails to unlock with wrong passphrase"), ()=>{
+    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let passphrase = "testingphrase"
+    // lock seedloop
+    seedloop.lock(passphrase);
+    // unlock with wrong password
+    let unlocked = seedloop.unlock("wrong")
+    expect(unlocked).toBeFalsy();
   })
 
 });
