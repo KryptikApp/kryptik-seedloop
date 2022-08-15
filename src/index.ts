@@ -88,6 +88,7 @@ export interface SeedLoop<T> {
     unlock(password:string):boolean
     getIsLocked():boolean
     getSeedPhrase():string|null
+    getAllKeyrings():HDKeyring[]
 }
 
 
@@ -276,6 +277,10 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
                 break;
             }
         }
+    }
+
+    getAllKeyrings():HDKeyring[]{
+        return Object(this.networkToKeyring).values;
     }
 
     addKeyRingByNetwork(network:Network):HDKeyring{
