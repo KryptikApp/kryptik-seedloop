@@ -423,6 +423,11 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return true;
     }
 
+    // returns true if the seedloop is locked
+    getIsLocked():boolean{
+        return this.isLocked;
+    }
+
 
     // wrapper around mnemonic state, as mnemonic is a private variable
     getSeedPhrase():string|null{
