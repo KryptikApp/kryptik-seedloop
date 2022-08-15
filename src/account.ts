@@ -9,5 +9,6 @@ export interface Account{
     address:string,
     // path to get from seed to child node that produced this address
     fullpath:string,
-    curve: CurveType
+    curve: CurveType,
+    index:number
 }

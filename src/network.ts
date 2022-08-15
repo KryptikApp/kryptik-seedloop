@@ -136,7 +136,7 @@ export function getBasePath(ticker:string, chainCodeIn?:number, networkFamily?:N
 }
 
 // builds coin path based on BIP-44 standard
-// NOTE: standard full eth path is: m/44'/60'/0'/0/0
+// NOTE: standard full eth path is: m/44'/60'/0'/0
 export function getFullPath(basePath:string, networkFamily?:NetworkFamily, depth=0): string{
     let path = basePath + `/${depth}`;
     // special cases for sol family networks WHICH USE DIFFERENT PATH DERIVATION SCHEMES

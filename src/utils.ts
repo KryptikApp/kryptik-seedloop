@@ -1,6 +1,6 @@
 import { mnemonicToSeedSync, validateMnemonic } from "bip39"
-import base58 from "bs58"
-import * as ed25519 from "ed25519-hd-key"
+import { encode } from "bs58"
+import {derivePath} from "ed25519-hd-key"
 import { getAddress } from "@ethersproject/address";
 import { Network, NetworkFamily } from "./network"
 
@@ -33,7 +33,7 @@ export function normalizeHexAddress(address: string | Buffer): string {
 
 
 export function createEd25519SecretKey(fullPath:string, seed:Buffer){
-    const key = ed25519.derivePath(fullPath, seed.toString('hex')).key;
+    const key = derivePath(fullPath, seed.toString('hex')).key;
     return key;
 }
 
@@ -110,14 +110,14 @@ export function formatAddress(address:string, network:Network):string{
 
 export function createWalletSeed(path:string, mnemonic:string):Buffer{
     const seedBuffer = mnemonicToSeedSync(mnemonic); 
-    let key = ed25519.derivePath(path, Buffer.from(seedBuffer).toString('hex')).key;
+    let key = derivePath(path, Buffer.from(seedBuffer).toString('hex')).key;
     return key;
 }
 
 
 export function hexToBase58(hexString:string){
     let buff = Buffer.from(hexString, "hex");
-    return base58.encode(buff);
+    return encode(buff);
 }
 
 

@@ -82,16 +82,19 @@ describe("Test Seedloop Features", () => {
       })
     )
   })
-  
-  it("Generates the correct EVM address", ()=>{
-      for(const derivation of validDerivations){
-        const seedLoop = new HDSeedLoop({mnemonic:derivation.mnemonic});
-        // eth address test
-        let networkEth = NetworkFromTicker("eth");
-        let ethAddys = seedLoop.getAddresses(networkEth);
-        expect(ethAddys[0]).toEqual(derivation.addresses[0]);
-      }
-  })
+
+  it("generates same EVM address as legacy wallets", () => {
+    validDerivations.map((m) => {
+      const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
+      const networkEth = NetworkFromTicker("eth");
+      seedloop.addAddresses(networkEth);
+      const addresses = seedloop.getAddresses(networkEth);
+      // test first and second addresses
+      expect(addresses[0]).toEqual(m.addresses[0].toLowerCase());
+      expect(addresses[1]).toEqual(m.addresses[1].toLowerCase());
+    })
+})
+
 
   it("deserializes after serializing", async () => {
     await Promise.all(
@@ -199,13 +202,38 @@ describe("Test Seedloop Features", () => {
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
     for(const passphrase of testPassphrases){
       seedloop.lock(passphrase);
-      let mnemonic = seedloop.getMnemonic()
+      let mnemonic = seedloop.getSeedPhrase()
       expect(mnemonic).toBeNull();
       let unlocked = seedloop.unlock(passphrase);
       expect(unlocked).toBeTruthy();
-      mnemonic = seedloop.getMnemonic()
+      mnemonic = seedloop.getSeedPhrase()
       expect(mnemonic).toEqual(originalMnemonic);
     }
+  })
+
+  it(("can fetch addresses from locked seedloop"), ()=>{
+    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let networkNear = NetworkFromTicker("near");
+    let passphrase = "testingphrase"
+    let unlockedAddresses = seedloop.getAddresses(networkNear);
+    seedloop.lock(passphrase);
+    let lockedAddresses = seedloop.getAddresses(networkNear);
+    expect(lockedAddresses).toStrictEqual(unlockedAddresses);
+  })
+
+
+  it(("can serialize and deserialize locked seedloop with addresses"), ()=>{
+    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let networkNear = NetworkFromTicker("near");
+    let passphrase = "testingphrase"
+    let unlockedAddresses = seedloop.getAddresses(networkNear);
+    // lock and serialize
+    seedloop.lock(passphrase);
+    let serializedloop = seedloop.serialize();
+    // deserialize
+    seedloop = HDSeedLoop.deserialize(serializedloop);
+    let lockedAddresses = seedloop.getAddresses(networkNear);
+    expect(lockedAddresses).toStrictEqual(unlockedAddresses);
   })
 
 });

@@ -1,12 +1,12 @@
 import { generateMnemonic, mnemonicToSeedSync } from "bip39";
-import bs58 from "bs58";
-import * as crypt from "crypto-js"
-import HDKey from "hdkey"
 
+import HDKey from "hdkey"
 import { Network, defaultNetworks, NetworkFromTicker, NetworkFamily, getBasePath} from "./network";
 import { validateAndFormatMnemonic } from "./utils";
-import { HDKeyring, SerializedHDKeyring, TransactionParameters } from "./keyring";
+import { HDKeyring, KeyringOptions, SerializedHDKeyring, TransactionParameters } from "./keyring";
 import { COSMOS_FAMILY_KEYRING_NAME, EVM_FAMILY_KEYRING_NAME, NEAR_FAMILY_KEYRING_NAME, SOLANA_FAMILY_KEYRING_NAME } from "./constants";
+import { encode } from "bs58";
+import { AES, enc } from "crypto-js";
 
 export {
     normalizeHexAddress,
@@ -28,7 +28,7 @@ from "./network"
 export {Account, CurveType} from "./account"
 
 
-export { HDKeyring, SerializedHDKeyring, KeyringOptions, defaultKeyringOptions } from "./keyring"
+export { HDKeyring, SerializedHDKeyring, KeyringOptions, defaultKeyringOptions, TransactionParameters } from "./keyring"
 
 export type Options = {
     strength?: number
@@ -37,6 +37,7 @@ export type Options = {
     network?: Network
     isCreation?: boolean
     isLocked?: boolean
+    xpub?: string | null
 }
 
 export const defaultOptions = {
@@ -47,7 +48,7 @@ export const defaultOptions = {
   network: NetworkFromTicker("eth"),
   passphrase: null,
   isCreation: true,
-  parentNode:null,
+  xpub:null,
   isLocked:false
 }
 
@@ -63,6 +64,7 @@ export type SerializedSeedLoop = {
     // note: each key ring is SERIALIZED
     keyrings: SerializedHDKeyring[]
     id:string
+    xpub:string
     isLocked:boolean
 }
 
@@ -70,7 +72,7 @@ export type SerializedSeedLoop = {
 export interface SeedLoop<T> {
     addAddresses(network: Network, n?: number): string[]
     getAddresses(network: Network): string[]
-    getPublicKeyString(network:Network, address:string):string
+    addKeyRingByNetwork(network:Network):HDKeyring
     networkOnSeedloop(network:Network):boolean
     serialize(): T
     addKeyRing(keyring: HDKeyring):void
@@ -81,48 +83,64 @@ export interface SeedLoop<T> {
         network:Network):string
     lock(password:string):void
     unlock(password:string):boolean
-    getMnemonic():string|null
+    getSeedPhrase():string|null
 }
 
 
 export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     readonly id: string
     private networkToKeyring: {[name:string]: HDKeyring} = {}
-    private hdKey:HDKey
+    private hdKey:HDKey|null
     public xpub:string
     private mnemonic: string|null
     private mnemonicCipherText: string|null = null;
     private isLocked: boolean = false;
-    private SerializedKeyringCache:SerializedHDKeyring[] = []
+
 
     constructor(options: Options = {}, networks:Network[]=Object.values(defaultNetworks)) {
         const hdOptions: Required<Options> = {
             ...defaultOptions,
             ...options,
         }
-        const mnemonic = validateAndFormatMnemonic(
-            hdOptions.mnemonic || generateMnemonic(hdOptions.strength)
-        )
 
-        // if error occured when creating mnemonic
-        if(!mnemonic) {
-            throw new Error("Invalid mnemonic.")
+        // usually runs when we deserialize a locked seedloop
+        if(hdOptions.isLocked){
+            if(!hdOptions.xpub){
+                throw(new Error("Error: extended public key is missing. Needed when deserializing a locked seedloop."))
+            }
+            this.xpub = hdOptions.xpub;
+            let newPubHdKey = HDKey.fromExtendedKey(this.xpub);
+            this.id = encode(newPubHdKey.publicKey)
+            this.isLocked = true;
+            this.mnemonic = null;
+            this.hdKey = null;
         }
-
-        this.mnemonic = mnemonic;
-
-        this.hdKey = HDKey.fromMasterSeed(mnemonicToSeedSync(this.mnemonic));
-        this.xpub = this.hdKey.publicExtendedKey;
-        
-        this.id = bs58.encode(this.hdKey.publicKey)
-
-        // populate seedloop with keyrings
-        this.populateLoopKeyrings(networks);
+        else{
+            const mnemonic = validateAndFormatMnemonic(
+                hdOptions.mnemonic || generateMnemonic(hdOptions.strength)
+            )
+    
+            // if error occured when creating mnemonic
+            if(!mnemonic) {
+                throw new Error("Invalid mnemonic.")
+            }
+    
+            this.mnemonic = mnemonic;
+    
+            this.hdKey = HDKey.fromMasterSeed(mnemonicToSeedSync(this.mnemonic));
+            this.xpub = this.hdKey.publicExtendedKey;
+            
+            this.id = encode(this.hdKey.publicKey)
+    
+            // populate seedloop with keyrings
+            this.populateLoopKeyrings(networks);
+        }
+       
     }
 
     // populate seed loop with keyrings for supported Networks
     private populateLoopKeyrings(networks:Network[]=Object.values(defaultNetworks)) {
-        if(!this.mnemonic){
+        if(!this.mnemonic || !this.hdKey){
             throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         }
         for (const Network of networks) {
@@ -132,12 +150,11 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             let baseNetworkPath = getBasePath(Network.ticker, Network.chainId, Network.networkFamily);
             // new hd key used for adding keyring
             let newHdKey = this.hdKey.derive(baseNetworkPath);
-            let ringOptions = {
+            let ringOptions:KeyringOptions = {
                 // default path is BIP-44 ethereum coin type
                 basePath: baseNetworkPath,
-                strength: 128,
                 network: Network,
-                xpub:newHdKey.publicExtendedKey
+                xpub: newHdKey.publicExtendedKey
             }
             // create new key ring for Network given setup options
             var keyRing: HDKeyring = new HDKeyring(ringOptions);
@@ -190,12 +207,13 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
            mnemonic: this.mnemonic,
            keyrings: serializedKeyRings,
            id: this.id,
+           xpub:this.xpub,
            isLocked: this.isLocked
        }
     }
 
     static deserialize(obj: SerializedSeedLoop): HDSeedLoop {
-        const { version, mnemonic, keyrings, id, isLocked } = obj
+        const { version, mnemonic, keyrings, id, isLocked, xpub } = obj
         if (version !== 1) {
             throw new Error(`Unknown serialization version ${obj.version}`)
         }
@@ -205,29 +223,19 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             // default path is BIP-44 ethereum coin type, where depth 5 is the address index
             strength: 128,
             mnemonic: mnemonic,
-            isCreation: false
+            isCreation: false,
+            isLocked: isLocked,
+            xpub:xpub
         }
         // create seed loop that will eventually be returned.
         var seedLoopNew: HDSeedLoop = new HDSeedLoop(loopOptions)
         // ensure HDnode matches original
         if(seedLoopNew.id != id) throw  new Error("The deserialized keyring fingerprint does not match the original.");
-        // can't deserialize seedloop's keyrings when locked
-        if(isLocked){
-            for(const sk of keyrings){
-                seedLoopNew.addToSerializedKeyringCache(sk);
-            }
-            return seedLoopNew;
-        }
-        if(!mnemonic) {
-            throw new Error("Error: No mnemonic exists on this seedloop. Required for address generation.")
-        }
-        else{
-            let seed = mnemonicToSeedSync(mnemonic);
-            // deserialize keyrings
-            for(const sk of keyrings){
-                const keyRing:HDKeyring = HDKeyring.deserialize(seed, sk);
-                seedLoopNew.addKeyRing(keyRing);
-            }
+        // deserialize keyrings
+        for(const sk of keyrings){
+            const keyRing:HDKeyring = HDKeyring.deserialize(sk);
+            seedLoopNew.addKeyRing(keyRing);
+         
         }
         return seedLoopNew;
     }
@@ -260,26 +268,35 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         }
     }
 
-    getPublicKeyString(network:Network, address:string):string{
-        let keyring = this.getKeyRing(network);
-        if(this.isLocked && this.SerializedKeyringCache.length==0){
-            throw(new Error("Error: Seedloop is locked and cache is full. Please unlock the seedloop, before fetching addresses."))
+    addKeyRingByNetwork(network:Network):HDKeyring{
+        // if keyring already available.. return it!
+        if(this.networkOnSeedloop(network)) return this.getKeyRing(network);
+        let networkPath = network.path;
+        if(network.networkFamily == NetworkFamily.EVM){
+            networkPath = defaultOptions.path;
         }
-        if(!this.mnemonic) {
-            throw new Error("Error: No mnemonic exists on this seedloop. Required for address generation.")
+        if(!this.mnemonic || !this.hdKey) {
+            throw new Error("Error: No mnemonic exists on this seedloop. Required to add a keyring.")
         }
-        let seed = mnemonicToSeedSync(this.mnemonic)
-        if(!this.keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
-        let pubKeyString:string = keyring.getPublicKeyString(seed, address)
-        return pubKeyString;
+        let baseNetworkPath = getBasePath(network.ticker, network.networkFamily, network.networkFamily);
+        let newHdKey = this.hdKey.derive(baseNetworkPath);
+        let ringOptions:KeyringOptions = {
+            // default path is BIP-44 ethereum coin type
+            basePath: baseNetworkPath,
+            network: network,
+            xpub:newHdKey.publicExtendedKey
+        }
+        // create new key ring for Network given setup options
+        var keyRing: HDKeyring = new HDKeyring(ringOptions);
+        let seed = mnemonicToSeedSync(this.mnemonic);
+         // add init addresses sync.
+        keyRing.addAddresses(seed);
+        // add key ring to seed loop 
+        this.addKeyRing(keyRing);
+        return keyRing;
     }
 
     getAddresses(network:Network):string[]{
-        // this error will throw if we have deserizlized a locked seedloop and fetch addresses
-        // consumers can handle this error by casing om msg (checking for 'locked') and unlocking
-        if(this.isLocked && this.SerializedKeyringCache.length==0){
-            throw(new Error("Error: Seedloop is locked and cache is full. Please unlock the seedloop, before fetching addresses."))
-        }
         let keyring = this.getKeyRing(network);
         if(!this.keyringValid(keyring)) throw Error("Invalid keyring, ensure keyring was defined and added to seedloop.");
         let addresses:string[] = keyring.getAddresses();
@@ -287,6 +304,8 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
     }
 
     addAddresses(network: Network, n?: number | undefined): string[]{
+        // this error will throw if we have deserizlized a locked seedloop and try to add addresses
+        // consumers can handle this error by casing om msg (checking for 'locked') and unlocking
         if(this.isLocked){
             throw(new Error("Error: Seedloop is locked. Please unlock the seedloop, before adding addresses."))
         }
@@ -372,10 +391,11 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             // something must be wrong if locking with mnemonic as null
             throw new Error("Error: No mnemonic exists on this seedloop. Required to lock seedloop.")
         }
-        const encryptedMnemonic = crypt.AES.encrypt(this.mnemonic, password).toString();
+        const encryptedMnemonic = AES.encrypt(this.mnemonic, password).toString();
         this.isLocked = true;
         this.mnemonicCipherText = encryptedMnemonic;
         this.mnemonic = null;
+        this.hdKey = null;
     }
 
     unlock(password:string):boolean{
@@ -387,7 +407,7 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
             throw new Error("Error: No mnemonic ciphertext exists on this seedloop. P.")
         }
         try{
-            const decryptedMnemonic = crypt.AES.decrypt(this.mnemonicCipherText, password).toString(crypt.enc.Utf8);
+            const decryptedMnemonic = AES.decrypt(this.mnemonicCipherText, password).toString(enc.Utf8);
             formattedMnemonic = validateAndFormatMnemonic(decryptedMnemonic)
         }
         /// unable to decrypt
@@ -397,31 +417,17 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         // not a valid mnemonic
         if(!formattedMnemonic) return false;
         // decryption worked! update state.
-        this.clearSerializedKeyringCache(formattedMnemonic);
         this.mnemonic = formattedMnemonic;
         this.mnemonicCipherText = null;
         this.isLocked = false;
         return true;
     }
 
-    addToSerializedKeyringCache(newSerializedKeyring:SerializedHDKeyring){
-        this.SerializedKeyringCache.push(newSerializedKeyring)
-    }
 
     // wrapper around mnemonic state, as mnemonic is a private variable
-    getMnemonic():string|null{
+    getSeedPhrase():string|null{
         return this.mnemonic;
     }
 
-    private clearSerializedKeyringCache(mnemonic:string){
-        // don't clear cache if locked... will need to deserialize later
-        if(this.isLocked) return;
-        this.SerializedKeyringCache = [];
-        const seed = mnemonicToSeedSync(mnemonic)
-        for(const sk of this.SerializedKeyringCache){
-            const keyRing:HDKeyring = HDKeyring.deserialize(seed, sk);
-            this.addKeyRing(keyRing);
-        }
-    }
     
 }

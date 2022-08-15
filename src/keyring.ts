@@ -8,13 +8,13 @@ import {TransactionRequest} from "@ethersproject/abstract-provider"
 import {hashMessage} from "@ethersproject/hash"
 
 
-import { createEd25519SecretKey, normalizeHexAddress } from "./utils"
+import { createEd25519SecretKey, hexToBase58, normalizeHexAddress } from "./utils"
 import { keccak256, publicToAddress } from "ethereumjs-util"
 import { Account, CurveType } from "./account"
-import * as nacl from "tweetnacl"
-import bs58 from "bs58"
+import {sign} from "tweetnacl"
 import { SignedTransaction } from "."
 import { joinSignature } from "@ethersproject/bytes";
+import { encode } from "bs58";
 
 
 
@@ -28,7 +28,7 @@ export const defaultKeyringOptions:KeyringOptions = {
   // default basePath is BIP-44
   basePath: "m/44'/60'/0'/0",
   network: NetworkFromTicker("eth"),
-  xpub:""
+  xpub:"",
 }
 
 
@@ -37,7 +37,8 @@ export type SerializedHDKeyring = {
   keyringType: string
   addressIndex: number
   network: Network,
-  xpub:string
+  xpub:string,
+  accounts:Account[]
 }
 
 export interface TransactionParameters{
@@ -70,14 +71,14 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   
     private accounts:Account[] = []
 
-    private hdKey:HDKey;
+    private readonly hdKey:HDKey;
 
-    private xpub:string;
+    private readonly xpub:string;
 
   
     constructor(options: KeyringOptions) {
       const hdOptions: Required<KeyringOptions> = {
-        ...options,
+        ...options
       }
   
       this.basePath = hdOptions.basePath
@@ -93,6 +94,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
 
     serialize(): SerializedHDKeyring {
         return {
+            accounts:this.accounts,
             keyringType: HDKeyring.type,
             basePath: this.basePath,
             addressIndex: this.addressIndex,
@@ -101,26 +103,47 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         }
     }
 
-    static deserialize( seed:Buffer, obj: SerializedHDKeyring): HDKeyring {
-        const {keyringType, basePath, addressIndex, network, xpub} = obj;
+    static deserialize( obj: SerializedHDKeyring): HDKeyring {
+        const {keyringType, basePath, addressIndex, network, xpub, accounts} = obj;
     
         if (keyringType !== HDKeyring.type) {
           throw new Error("HDKeyring only supports BIP-32/44 style HD wallets.")
         };
+
+        if(addressIndex!=accounts.length){
+            throw new Error("Mismatch between accounts and account index when deserializing keyring.");
+        }
     
         const keyring = new HDKeyring({
           basePath: basePath,
           xpub:xpub,
           network: network
         });
-    
-        keyring.addAddresses(seed, addressIndex);
+
+        keyring.addRecoveredAccounts(accounts)
     
         return keyring;
       }
 
     getAddresses():string[]{
         return this.accounts.map((account) => account.address);
+    }
+
+    // adds provided accounts to keyring if valid
+    addRecoveredAccounts(accounts:Account[]){
+        // each account should be distinct
+        // indices should ascend
+        // order by ascending index
+        accounts = accounts.sort((a, b)=>a.index-b.index);
+        let lastIndex:number = -1;
+        for(const account of accounts){
+            if(account.index!=lastIndex+1){
+                throw(new Error("Error: Recovered account indices do not ascend by one."))
+            }
+            lastIndex = account.index;
+        }
+        this.accounts = accounts;
+        this.addressIndex = accounts.length;
     }
 
     // we need seed for ED25519 Addys
@@ -136,38 +159,6 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         this.addressIndex += numNewAccounts
         const addresses = this.getAddresses();
         return addresses.slice(-numNewAccounts)
-    }
-
-    getPublicKeyString(seed:Buffer, address:string){
-        let account:Account|undefined = this.accounts.find(a=>a.address.toLowerCase() == address.toLowerCase())
-        if(!account) throw(new Error("Error: Unable to find an account that matches the given address"));
-        let pubKeyString:string;
-        switch(this.network.networkFamily){
-            case(NetworkFamily.EVM):{
-                pubKeyString = this.getEVMPubKeyString(account);
-                break;
-            }
-            default:{
-                pubKeyString = this.getEd25519PubKeyString(seed, account);
-                break;
-            }
-        }
-        return pubKeyString;
-    }
-
-    // for now... just return address
-    private getEVMPubKeyString(account:Account):string{
-        return account.address;
-    }
-
-    // for sol, will return same sol address
-    // useful for getting NEAR pub key string
-    // which is different than NEAR addres
-    private getEd25519PubKeyString(seed:Buffer, account:Account):string{
-        const hdED25519Seed:Buffer = createEd25519SecretKey(account.fullpath, seed);
-        const keypair:nacl.SignKeyPair = nacl.sign.keyPair.fromSeed(hdED25519Seed);
-        const newAddress:string = bs58.encode(keypair.publicKey)
-        return newAddress;
     }
 
     signMessage(seed:Buffer, address:string, message:string):string{
@@ -195,11 +186,11 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     }
 
     // currently unused
-    private async signEd25519Message(seed:Buffer, account:Account, message:string):Promise<string>{
-        var msg = Buffer.from(message);
-        let signedMsg = await this.signSolMessage(seed, account, msg);
-        return signedMsg.toString();
-    }
+    // private async signEd25519Message(seed:Buffer, account:Account, message:string):Promise<string>{
+    //     var msg = Buffer.from(message);
+    //     let signedMsg = await this.signSolMessage(seed, account, msg);
+    //     return signedMsg.toString();
+    // }
 
     generateAccount(index:number, seed:Buffer):Account{
          // derive child pub key
@@ -229,7 +220,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         let newAddress:string = "0x" + addressBuffer.toString("hex");
         newAddress = normalizeHexAddress(newAddress);
         let accountPath = getFullPath(this.basePath, this.network.networkFamily, accountNumber);
-        let newAccount:Account = {address:newAddress, fullpath:accountPath, curve:CurveType.Secp25k1}
+        let newAccount:Account = {address:newAddress, fullpath:accountPath, curve:CurveType.Secp25k1, index:accountNumber}
         return newAccount;
     }
 
@@ -240,15 +231,15 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         newHDKey = newHDKey.derive(accountPath);
         // get hd derived ed25519 curve seed
         let hdED25519Seed:Buffer = createEd25519SecretKey(accountPath, seed);
-        let keypair:nacl.SignKeyPair = nacl.sign.keyPair.fromSeed(hdED25519Seed);
+        let keypair:nacl.SignKeyPair = sign.keyPair.fromSeed(hdED25519Seed);
         let newAddress:string;
         if(isHexRep){
             newAddress = Buffer.from(keypair.publicKey).toString("hex");
         }
         else{
-            newAddress = bs58.encode(keypair.publicKey)
+            newAddress = encode(keypair.publicKey)
         }
-        let newAccount:Account = {address:newAddress, fullpath:accountPath, curve:CurveType.Secp25k1}
+        let newAccount:Account = {address:newAddress, fullpath:accountPath, curve:CurveType.Secp25k1, index:accountNumber}
         return newAccount;
     }
 
@@ -304,9 +295,9 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     private async signSolMessage(seed:Buffer, account:Account, solTransactionBuffer:Uint8Array):Promise<Uint8Array>{
         // get hd derived ed25519 curve seed
         let hdED25519Seed:Buffer = createEd25519SecretKey(account.fullpath, seed);
-        let keypair:nacl.SignKeyPair = nacl.sign.keyPair.fromSeed(hdED25519Seed);
+        let keypair:nacl.SignKeyPair = sign.keyPair.fromSeed(hdED25519Seed);
         // create sol signature
-        let solSignature:Uint8Array = nacl.sign.detached(solTransactionBuffer, keypair.secretKey);
+        let solSignature:Uint8Array = sign.detached(solTransactionBuffer, keypair.secretKey);
         return solSignature;
     }
 }
