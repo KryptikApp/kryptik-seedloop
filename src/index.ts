@@ -1,12 +1,12 @@
 import { generateMnemonic, mnemonicToSeedSync } from "bip39";
-
 import HDKey from "hdkey"
+import { encode } from "bs58";
+import { AES, enc } from "crypto-js";
+
 import { Network, defaultNetworks, NetworkFromTicker, NetworkFamily, getBasePath} from "./network";
 import { validateAndFormatMnemonic } from "./utils";
 import { HDKeyring, KeyringOptions, SerializedHDKeyring, TransactionParameters } from "./keyring";
 import { COSMOS_FAMILY_KEYRING_NAME, EVM_FAMILY_KEYRING_NAME, NEAR_FAMILY_KEYRING_NAME, SOLANA_FAMILY_KEYRING_NAME } from "./constants";
-import { encode } from "bs58";
-import { AES, enc } from "crypto-js";
 
 export {
     normalizeHexAddress,

@@ -1,4 +1,3 @@
-import { getFullPath, Network, NetworkFamily, NetworkFromTicker } from "./network"
 import HDKey from "hdkey"
 // ethers helpers
 import { resolveProperties } from "@ethersproject/properties";
@@ -7,15 +6,15 @@ import { serialize, UnsignedTransaction } from "@ethersproject/transactions";
 import {TransactionRequest} from "@ethersproject/abstract-provider"
 import {hashMessage} from "@ethersproject/hash"
 import { publicToAddress } from "ethereumjs-util"
-
 import { createEd25519SecretKey, normalizeHexAddress } from "./utils"
-import { Account, CurveType } from "./account"
 import {sign} from "tweetnacl"
 import { SignedTransaction } from "."
 import { joinSignature } from "@ethersproject/bytes";
 import { encode } from "bs58";
-import { Wallet } from "@ethersproject/wallet";
 import { keccak256 } from "@ethersproject/keccak256";
+
+import { getFullPath, Network, NetworkFamily, NetworkFromTicker } from "./network"
+import { Account, CurveType } from "./account"
 
 
 
@@ -185,7 +184,6 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         let newHDKey = HDKey.fromMasterSeed(seed);
         newHDKey = newHDKey.derive(account.fullpath);
         let signingKey:SigningKey = new SigningKey(newHDKey.privateKey);
-        let wallet = new Wallet(signingKey);
         const signature = joinSignature(signingKey.signDigest(hashMessage(message)));
         return signature;
     }
@@ -289,11 +287,6 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
             throw(new Error("Error: Unable to create EVM signing key from hd private key."))
         }
 
-        // USED ONLY FOR DEBUGGING SIGNATURE ERROR at the moment
-        let wallet = new Wallet(signingKey);
-        const signature = await wallet.signTransaction(transaction);
-        console.log("ethers signature:");
-        console.log(signature);
         let txResolved = await resolveProperties(transaction);
         if(txResolved.from != null) {
             if (txResolved.from.toLowerCase() !== account.address.toLowerCase()) {
@@ -301,21 +294,12 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
             }
             delete txResolved.from
         }
-        
-        
-        const txDigest = keccak256(Buffer.from(serialize(<UnsignedTransaction>txResolved)))
+
+        const txDigest = keccak256(serialize(<UnsignedTransaction>txResolved))
         const sigObject = signingKey.signDigest(txDigest);
-        // BUG: sigobject 'v' field differs from the v field populated by serialize
-        console.log(sigObject)
         txResolved.from = account.address
         const signedTx = serialize(<UnsignedTransaction>txResolved, sigObject);
-        console.log("kryptik signature");
-        console.log(signedTx);
-        console.log("Keytring digest");
-        console.log(txDigest)
         return signedTx;
-        // const signature = signingKey.signDigest(keccak256(Buffer.from(serialize(<UnsignedTransaction>tx))));
-        // return serialize(<UnsignedTransaction>tx, signature);
     }
 
      // can sign data OR transaction!

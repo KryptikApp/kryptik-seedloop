@@ -2,6 +2,7 @@ import { mnemonicToSeedSync, validateMnemonic } from "bip39"
 import { encode } from "bs58"
 import {derivePath} from "ed25519-hd-key"
 import { getAddress } from "@ethersproject/address";
+
 import { Network, NetworkFamily } from "./network"
 
 
