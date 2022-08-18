@@ -3,8 +3,10 @@ import HDSeedLoop from "../src";
 import { expect, describe, it } from 'vitest'
 import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { serialize, UnsignedTransaction, recoverAddress, parse } from "@ethersproject/transactions";
-import { keccak256 } from "ethereumjs-util";
+
 import { hashMessage } from "@ethersproject/hash";
+import { keccak256 } from "@ethersproject/keccak256";
+
 
 const validMnemonics = [
   "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else",
@@ -131,11 +133,11 @@ describe("Test Seedloop Features", () => {
   })
 
   it("signs EVM transactions recoverably", async () => {
-    await Promise.all(
-      twelveOrMoreWordMnemonics.map(async (m) => {
-        const keyring = new HDSeedLoop({ mnemonic: m })
+    for(const m of twelveOrMoreWordMnemonics){
+        const seedloop = new HDSeedLoop({ mnemonic: m })
         const networkEth = NetworkFromTicker("eth");
-        const addresses = await keyring.addAddresses(networkEth, 1)
+        seedloop.addAddresses(networkEth, 1)
+        const addresses = seedloop.getAddresses(networkEth);
         for(const address of addresses){
           const tx: TransactionRequest = {
             to: "0x0000000000000000000000000000000000000000",
@@ -144,11 +146,15 @@ describe("Test Seedloop Features", () => {
             gasLimit: 300000,
             gasPrice: 300000,
             nonce: 300000,
+            type:1
           }
-          const signedTx = await keyring.signTransaction(address, {evmTransaction:tx}, networkEth)
+          console.log(address);
+          const signedTx = await seedloop.signTransaction(address, {evmTransaction:tx}, networkEth)
           expect(signedTx.evmFamilyTx).toBeDefined();
-          if(!signedTx.evmFamilyTx) return;
+          if(!signedTx.evmFamilyTx) return; 
           const parsed = parse(signedTx.evmFamilyTx)
+          // console.log(address);
+          // console.log(parsed);
           const sig = {
             r: parsed.r as string,
             s: parsed.s as string,
@@ -156,14 +162,79 @@ describe("Test Seedloop Features", () => {
           }
           // workaround ethers object key issue
           if(tx.from){
-            delete tx.from
+            tx.from = address
           }
           const digest = keccak256(Buffer.from(serialize(<UnsignedTransaction>tx)));
+          // console.log(digest.toString())
           let recoveredAddress = recoverAddress(digest, sig).toLowerCase();
           expect(recoveredAddress).toEqual(address)
+          expect(parsed.from?.toLowerCase()).toEqual(address.toLowerCase())
         }
-      })
-    )
+    }
+  })
+
+  // individual tx test to catch EVM signature bug
+  it("signs EVM transactions recoverably", async () => {
+    const m = "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else"
+    const tx: TransactionRequest = {
+      to: "0x0000000000000000000000000000000000000000",
+      from:"0xca19be978a1d2456d16bde3efb0a5b8946f4a1ce",
+      value: 300000,
+      gasLimit: 300000,
+      gasPrice: 300000,
+      nonce: 300000,
+      type:1
+    }
+    // NOTE: this mnemonic automatically initializes "0xca19be978a1d2456d16bde3efb0a5b8946f4a1ce" at the standard ETH derivation path
+    const seedloop = new HDSeedLoop({ mnemonic: m })
+    const networkEth = NetworkFromTicker("eth");
+    const signedTx = await seedloop.signTransaction("0xca19be978a1d2456d16bde3efb0a5b8946f4a1ce", {evmTransaction:tx}, networkEth)
+    expect(signedTx.evmFamilyTx).toBeDefined();
+    if(!signedTx.evmFamilyTx) return; 
+    const parsed = parse(signedTx.evmFamilyTx);
+    // log produces:
+    // {
+    //   type: 1,
+    //   chainId: 0,
+    //   nonce: 300000,
+    //   gasPrice: BigNumber { _hex: '0x0493e0', _isBigNumber: true },
+    //   gasLimit: BigNumber { _hex: '0x0493e0', _isBigNumber: true },
+    //   to: '0x0000000000000000000000000000000000000000',
+    //   value: BigNumber { _hex: '0x0493e0', _isBigNumber: true },
+    //   data: '0x',
+    //   accessList: [],
+    //   hash: '0x70d1a9f95dc37c8b77057d71ae64c5ca63b6b96b4bfccfc4969706f6bbfc724d',
+    //   v: 0,
+    //   r: '0x3a2ef92602029279cc3566e70794d48a888a0ccbc5c5fc05abb9c9959e1a2005',
+    //   s: '0x3905fbf4ee86fe4ea6de36ba633bd8d15c85296bd7f86f3a15ffee7f8223f930',
+    //   from: '0xea645bB5b03C2478474F6086C78a9Cf43fdD68b9'
+    // }
+
+    // NOTE: the 'v' field (populated after serialization) differs from the original signature shown below
+    // ORIGINAL signature:
+    // {
+    //   r: '0x3a2ef92602029279cc3566e70794d48a888a0ccbc5c5fc05abb9c9959e1a2005',
+    //   s: '0x3905fbf4ee86fe4ea6de36ba633bd8d15c85296bd7f86f3a15ffee7f8223f930',
+    //   _vs: '0x3905fbf4ee86fe4ea6de36ba633bd8d15c85296bd7f86f3a15ffee7f8223f930',
+    //   recoveryParam: 0,
+    //   v: 27,
+    //   yParityAndS: '0x3905fbf4ee86fe4ea6de36ba633bd8d15c85296bd7f86f3a15ffee7f8223f930',
+    //   compact: '0x3a2ef92602029279cc3566e70794d48a888a0ccbc5c5fc05abb9c9959e1a20053905fbf4ee86fe4ea6de36ba633bd8d15c85296bd7f86f3a15ffee7f8223f930'
+    // }
+    const sig = {
+      r: parsed.r as string,
+      s: parsed.s as string,
+      v: parsed.v as number,
+    }
+    console.log(parsed);
+    const digest = keccak256(Buffer.from(serialize(<UnsignedTransaction>tx)));
+    let recoveredAddress = recoverAddress(digest, sig).toLowerCase();
+    // SUCCEEEDS
+    expect(recoveredAddress).toEqual("0xca19be978a1d2456d16bde3efb0a5b8946f4a1ce")
+    // FAILS WITH
+    // + Expected   "0xca19be978a1d2456d16bde3efb0a5b8946f4a1ce"
+    // - Received   "0xea645bb5b03c2478474f6086c78a9cf43fdd68b9"
+    expect(parsed.from?.toLowerCase()).toEqual("0xca19be978a1d2456d16bde3efb0a5b8946f4a1ce")
   })
 
   it("generates the same addresses from the same mnemonic", async () => {
