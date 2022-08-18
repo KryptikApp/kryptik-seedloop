@@ -408,15 +408,32 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         return signedTransaction;
     }
 
-    // encrypts wallet seed with a given password
-    lock(password:string){
+    // encrypts unlocked wallet seed with a given password
+    // replaces a password if it already exists
+    addPassword(password:string){
+        if(this.isLocked){
+            throw(new Error("Seedloop must be unlocked to add a password"))
+        }
         if(!this.mnemonic) {
             // something must be wrong if locking with mnemonic as null
-            throw new Error("Error: No mnemonic exists on this seedloop. Required to lock seedloop.")
+            throw new Error("Error: No mnemonic exists on this seedloop. Required to add password.")
         }
         const encryptedMnemonic = AES.encrypt(this.mnemonic, password).toString();
-        this.isLocked = true;
         this.mnemonicCipherText = encryptedMnemonic;
+    }
+
+    // checks if ciphertext exists on seedloop
+    // returns true if so
+    passwordExists():boolean{
+        return this.mnemonicCipherText!=null;
+    }
+
+    // wipes all private keys from the seedloop. password must have been added first.
+    lock(){
+        if(!this.mnemonicCipherText){
+            throw new Error("Error: No ciphertext exists on this seedloop. Make sure you have added a password first.")
+        }
+        this.isLocked = true;
         this.mnemonic = null;
         this.hdKey = null;
     }
@@ -441,7 +458,6 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop>{
         if(!formattedMnemonic) return false;
         // decryption worked! update state.
         this.mnemonic = formattedMnemonic;
-        this.mnemonicCipherText = null;
         this.isLocked = false;
         return true;
     }

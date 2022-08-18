@@ -204,7 +204,8 @@ describe("Test Seedloop Features", () => {
     const originalMnemonic = validMnemonics[0];
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
     for(const passphrase of testPassphrases){
-      seedloop.lock(passphrase);
+      seedloop.addPassword(passphrase);
+      seedloop.lock();
       let mnemonic = seedloop.getSeedPhrase()
       expect(mnemonic).toBeNull();
       let unlocked = seedloop.unlock(passphrase);
@@ -218,7 +219,8 @@ describe("Test Seedloop Features", () => {
     const originalMnemonic = validMnemonics[0];
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
     for(const passphrase of testPassphrases){
-      seedloop.lock(passphrase);
+      seedloop.addPassword(passphrase);
+      seedloop.lock();
       let mnemonic = seedloop.getSeedPhrase()
       expect(mnemonic).toBeNull();
       let unlocked = seedloop.unlock(passphrase);
@@ -242,7 +244,8 @@ describe("Test Seedloop Features", () => {
     let networkNear = NetworkFromTicker("near");
     let passphrase = "testingphrase"
     let unlockedAddresses = seedloop.getAddresses(networkNear);
-    seedloop.lock(passphrase);
+    seedloop.addPassword(passphrase);
+    seedloop.lock();
     let lockedAddresses = seedloop.getAddresses(networkNear);
     expect(lockedAddresses).toStrictEqual(unlockedAddresses);
   })
@@ -254,7 +257,8 @@ describe("Test Seedloop Features", () => {
     let passphrase = "testingphrase"
     let unlockedAddresses = seedloop.getAddresses(networkNear);
     // lock and serialize
-    seedloop.lock(passphrase);
+    seedloop.addPassword(passphrase);
+    seedloop.lock();
     let serializedloop = seedloop.serialize();
     // deserialize
     seedloop = HDSeedLoop.deserialize(serializedloop);
@@ -266,7 +270,8 @@ describe("Test Seedloop Features", () => {
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
     let passphrase = "testingphrase"
     // lock and serialize
-    seedloop.lock(passphrase);
+    seedloop.addPassword(passphrase);
+      seedloop.lock();
     let serializedloop = seedloop.serialize();
     // deserialize
     seedloop = HDSeedLoop.deserialize(serializedloop);
@@ -274,11 +279,28 @@ describe("Test Seedloop Features", () => {
     expect(unlocked).toBeTruthy();
   })
 
+  it(("encryption password persists"), ()=>{
+    const mnemonic = validMnemonics[0];
+    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let passphrase = "testingphrase"
+    // lock and serialize
+    seedloop.addPassword(passphrase);
+    seedloop.lock();
+    let unlocked1 = seedloop.unlock(passphrase);
+    expect(unlocked1).toBeTruthy();
+    seedloop.lock();
+    let unlocked2 = seedloop.unlock(passphrase);
+    expect(unlocked2).toBeTruthy();
+    let mnemonicUnlocked = seedloop.getSeedPhrase();
+    expect(mnemonicUnlocked).toEqual(mnemonic);
+  })
+
   it(("fails to unlock with wrong passphrase"), ()=>{
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
     let passphrase = "testingphrase"
     // lock seedloop
-    seedloop.lock(passphrase);
+    seedloop.addPassword(passphrase);
+    seedloop.lock();
     // unlock with wrong password
     let unlocked = seedloop.unlock("wrong")
     expect(unlocked).toBeFalsy();
