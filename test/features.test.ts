@@ -16,6 +16,15 @@ const validMnemonics = [
   "mad such absent minor vapor edge tornado wrestle convince shy battle region adapt order finish foot follow monitor",
 ]
 
+// valid SOL derivations. TODO: add more addresses
+const validSolDerivations = [
+  {
+    mnemonic: "brain surround have swap horror body response double fire dumb bring hazard",
+    addresses: ["4Ccc4fnp6KHtkY1YRf8Zc1QhESrwyY4gydiutFtmQ8Bh"]
+  }
+]
+
+// valid EVM derivations
 const validDerivations = [
   {
     mnemonic:
@@ -95,6 +104,16 @@ describe("Test Seedloop Features", () => {
       expect(addresses[0]).toEqual(m.addresses[0].toLowerCase());
       expect(addresses[1]).toEqual(m.addresses[1].toLowerCase());
     })
+})
+
+it("generates same SOL address as legacy wallets", ()=>{
+  validSolDerivations.map((m) => {
+    const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
+    const networkSol = NetworkFromTicker("sol");
+    const addresses = seedloop.getAddresses(networkSol);
+    // test first address
+    expect(addresses[0].toLowerCase()).toEqual(m.addresses[0].toLowerCase());
+  })
 })
 
 
