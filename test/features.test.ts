@@ -1,5 +1,5 @@
-import { NetworkFromTicker } from "../src/network";
-import HDSeedLoop from "../src";
+import { Network, NetworkFromTicker } from "../src/network";
+import HDSeedLoop, { SignedTransaction } from "../src";
 import { expect, describe, it } from 'vitest'
 import { TransactionRequest } from "@ethersproject/abstract-provider";
 import { serialize, UnsignedTransaction, recoverAddress, parse } from "@ethersproject/transactions";
@@ -97,7 +97,7 @@ describe("Test Seedloop Features", () => {
   it("generates same EVM address as legacy wallets", () => {
     validDerivations.map((m) => {
       const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
-      const networkEth = NetworkFromTicker("eth");
+      const networkEth:Network = NetworkFromTicker("eth");
       seedloop.addAddresses(networkEth);
       const addresses = seedloop.getAddresses(networkEth);
       // test first and second addresses
@@ -109,7 +109,7 @@ describe("Test Seedloop Features", () => {
 it("generates same SOL address as legacy wallets", ()=>{
   validSolDerivations.map((m) => {
     const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
-    const networkSol = NetworkFromTicker("sol");
+    const networkSol:Network = NetworkFromTicker("sol");
     const addresses = seedloop.getAddresses(networkSol);
     // test first address
     expect(addresses[0].toLowerCase()).toEqual(m.addresses[0].toLowerCase());
@@ -154,7 +154,7 @@ it("generates same SOL address as legacy wallets", ()=>{
   it("signs EVM transactions recoverably", async () => {
     for(const m of twelveOrMoreWordMnemonics){
         const seedloop = new HDSeedLoop({ mnemonic: m })
-        const networkEth = NetworkFromTicker("eth");
+        const networkEth:Network = NetworkFromTicker("eth");
         seedloop.addAddresses(networkEth, 1)
         const addresses = seedloop.getAddresses(networkEth);
         for(const address of addresses){
@@ -167,7 +167,7 @@ it("generates same SOL address as legacy wallets", ()=>{
             nonce: 300000,
             type:1
           }
-          const signedTx = await seedloop.signTransaction(address, {evmTransaction:tx}, networkEth)
+          const signedTx:SignedTransaction = await seedloop.signTransaction(address, {evmTransaction:tx}, networkEth)
           expect(signedTx.evmFamilyTx).toBeDefined();
           if(!signedTx.evmFamilyTx) return; 
           const parsed = parse(signedTx.evmFamilyTx)
@@ -194,7 +194,7 @@ it("generates same SOL address as legacy wallets", ()=>{
         const seedloop1 = new HDSeedLoop({ mnemonic: m })
         const seedloop2 = new HDSeedLoop({ mnemonic: m })
         // using NEAR network in this case... can subsititute any other
-        let networkNear = NetworkFromTicker("near");
+        let networkNear:Network = NetworkFromTicker("near");
         expect((await seedloop1.getAddresses(networkNear)).length).toBeGreaterThan(0)
         expect((await seedloop2.getAddresses(networkNear)).length).toBeGreaterThan(0)
 
@@ -208,7 +208,7 @@ it("generates same SOL address as legacy wallets", ()=>{
   it("signs messages recoverably with EVM networks", () => {
       validDerivations.map((m) => {
         const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
-        const networkEth = NetworkFromTicker("eth");
+        const networkEth:Network = NetworkFromTicker("eth");
         const addresses = seedloop.getAddresses(networkEth);
         for(const address of addresses){
           const message = "recoverThisMessage"
@@ -260,7 +260,7 @@ it("generates same SOL address as legacy wallets", ()=>{
 
   it(("can fetch addresses from locked seedloop"), ()=>{
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let networkNear = NetworkFromTicker("near");
+    let networkNear:Network = NetworkFromTicker("near");
     let passphrase = "testingphrase"
     let unlockedAddresses = seedloop.getAddresses(networkNear);
     seedloop.addPassword(passphrase);
@@ -272,7 +272,7 @@ it("generates same SOL address as legacy wallets", ()=>{
 
   it(("can serialize and deserialize locked seedloop with addresses"), ()=>{
     let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let networkNear = NetworkFromTicker("near");
+    let networkNear:Network = NetworkFromTicker("near");
     let passphrase = "testingphrase"
     let unlockedAddresses = seedloop.getAddresses(networkNear);
     // lock and serialize
