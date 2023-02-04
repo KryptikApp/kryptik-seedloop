@@ -337,7 +337,7 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         // ensure sol tx. was passed in
         if (!txParams.transactionBuffer)
           throw Error("Algorand transaction not provided.");
-        signedTx.solanaFamilyTx = await this.signAlgorandMessage(
+        signedTx.algorandFamilyTx = await this.signAlgorandMessage(
           seed,
           account,
           txParams.transactionBuffer
@@ -395,8 +395,8 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     // get hd derived ed25519 curve seed
     let hdED25519Seed: Buffer = createEd25519SecretKey(account.fullpath, seed);
     let keypair: nacl.SignKeyPair = sign.keyPair.fromSeed(hdED25519Seed);
-    const signature = sign(msg, keypair.secretKey);
-    return signature;
+    const signature = sign.detached(msg, keypair.secretKey);
+    return Buffer.from(signature);
   }
 
   private async signEVMTransaction(

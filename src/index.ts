@@ -80,6 +80,7 @@ export interface SignedTransaction {
   evmFamilyTx?: string;
   solanaFamilyTx?: Uint8Array;
   nearFamilyTx?: Uint8Array;
+  algorandFamilyTx?: Uint8Array;
 }
 
 export type SerializedSeedLoop = {
