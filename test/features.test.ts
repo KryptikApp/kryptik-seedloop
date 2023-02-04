@@ -1,12 +1,17 @@
 import { Network, NetworkFromTicker } from "../src/network";
 import HDSeedLoop, { SignedTransaction } from "../src";
-import { expect, describe, it } from 'vitest'
+import { expect, describe, it } from "vitest";
 import { TransactionRequest } from "@ethersproject/abstract-provider";
-import { serialize, UnsignedTransaction, recoverAddress, parse } from "@ethersproject/transactions";
+import {
+  serialize,
+  UnsignedTransaction,
+  recoverAddress,
+  parse,
+} from "@ethersproject/transactions";
 
 import { hashMessage } from "@ethersproject/hash";
 import { keccak256 } from "@ethersproject/keccak256";
-
+import { isValidAlgorandAddress } from "../src/utils";
 
 const validMnemonics = [
   "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else",
@@ -14,15 +19,16 @@ const validMnemonics = [
   "glass skin grass cat photo essay march detail remain",
   "dream dinosaur poem cherry brief hand injury ice stuff steel bench vacant amazing bar uncover",
   "mad such absent minor vapor edge tornado wrestle convince shy battle region adapt order finish foot follow monitor",
-]
+];
 
 // valid SOL derivations. TODO: add more addresses
 const validSolDerivations = [
   {
-    mnemonic: "brain surround have swap horror body response double fire dumb bring hazard",
-    addresses: ["4Ccc4fnp6KHtkY1YRf8Zc1QhESrwyY4gydiutFtmQ8Bh"]
-  }
-]
+    mnemonic:
+      "brain surround have swap horror body response double fire dumb bring hazard",
+    addresses: ["4Ccc4fnp6KHtkY1YRf8Zc1QhESrwyY4gydiutFtmQ8Bh"],
+  },
+];
 
 // valid EVM derivations
 const validDerivations = [
@@ -58,222 +64,245 @@ const validDerivations = [
       "0x260268b1cb9f4b9f6269d6051300057e3a8e1cb5",
     ],
   },
-]
+];
 
-const testPassphrases = ["super_secret", "1234"]
+const testPassphrases = ["super_secret", "1234"];
 
 const twelveOrMoreWordMnemonics = validMnemonics.filter(
   (m) => m.split(" ").length >= 12
-)
+);
 
 const underTwelveWorkMnemonics = validMnemonics.filter(
   (m) => m.split(" ").length < 12
-)
+);
 
 describe("Test Seedloop Features", () => {
-
   it("cannot be constructed with an invalid mnemonic", () => {
     underTwelveWorkMnemonics.forEach((m) =>
       expect(() => new HDSeedLoop({ mnemonic: m })).toThrowError()
-    )
-  })
+    );
+  });
 
   it("initializes the same first addresses from the same mnemonic", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
-        const seedloop1 = new HDSeedLoop({ mnemonic: m })
-        const seedloop2 = new HDSeedLoop({ mnemonic: m })
+        const seedloop1 = new HDSeedLoop({ mnemonic: m });
+        const seedloop2 = new HDSeedLoop({ mnemonic: m });
         let networkSol = NetworkFromTicker("sol");
-        expect((await seedloop1.getAddresses(networkSol)).length).toEqual(1)
-        expect((await seedloop2.getAddresses(networkSol)).length).toEqual(1)
+        expect((await seedloop1.getAddresses(networkSol)).length).toEqual(1);
+        expect((await seedloop2.getAddresses(networkSol)).length).toEqual(1);
         expect(seedloop1.getAddresses(networkSol)).toStrictEqual(
           seedloop2.getAddresses(networkSol)
-        )
-
+        );
       })
-    )
-  })
+    );
+  });
 
   it("generates same EVM address as legacy wallets", () => {
     validDerivations.map((m) => {
-      const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
-      const networkEth:Network = NetworkFromTicker("eth");
+      const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic });
+      const networkEth: Network = NetworkFromTicker("eth");
       seedloop.addAddresses(networkEth);
       const addresses = seedloop.getAddresses(networkEth);
       // test first and second addresses
       expect(addresses[0]).toEqual(m.addresses[0].toLowerCase());
       expect(addresses[1]).toEqual(m.addresses[1].toLowerCase());
-    })
-})
+    });
+  });
 
-it("generates same SOL address as legacy wallets", ()=>{
-  validSolDerivations.map((m) => {
-    const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
-    const networkSol:Network = NetworkFromTicker("sol");
-    const addresses = seedloop.getAddresses(networkSol);
-    // test first address
-    expect(addresses[0].toLowerCase()).toEqual(m.addresses[0].toLowerCase());
-  })
-})
+  it("generates same SOL address as legacy wallets", () => {
+    validSolDerivations.map((m) => {
+      const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic });
+      const networkSol: Network = NetworkFromTicker("sol");
+      const addresses = seedloop.getAddresses(networkSol);
+      // test first address
+      expect(addresses[0].toLowerCase()).toEqual(m.addresses[0].toLowerCase());
+    });
+  });
 
+  it("generates algorand family address", () => {
+    validSolDerivations.map((m) => {
+      const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic });
+      const networkAlgo: Network = NetworkFromTicker("algo");
+      const addresses = seedloop.getAddresses(networkAlgo);
+      // test first address
+      addresses.map((a) => {
+        console.log(a);
+        expect(isValidAlgorandAddress(a)).toBeTruthy();
+      });
+    });
+  });
 
   it("deserializes after serializing", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
-        const seedloop = new HDSeedLoop({ mnemonic: m })
-        const id1 = seedloop.id
+        const seedloop = new HDSeedLoop({ mnemonic: m });
+        const id1 = seedloop.id;
 
-        const serialized = await seedloop.serialize()
-        const deserialized = HDSeedLoop.deserialize(serialized)
+        const serialized = await seedloop.serialize();
+        const deserialized = HDSeedLoop.deserialize(serialized);
 
-        expect(id1).toBe(deserialized.id)
+        expect(id1).toBe(deserialized.id);
       })
-    )
-  })
+    );
+  });
 
   it("fails to deserialize different versions", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
-        const seedLoop = new HDSeedLoop({ mnemonic: m })
-        const serialized = await seedLoop.serialize()
-        serialized.version = 2
-        expect(() => HDSeedLoop.deserialize(serialized)).toThrowError()
+        const seedLoop = new HDSeedLoop({ mnemonic: m });
+        const serialized = await seedLoop.serialize();
+        serialized.version = 2;
+        expect(() => HDSeedLoop.deserialize(serialized)).toThrowError();
       })
-    )
-  })
-
+    );
+  });
 
   it("generates the same IDs from the same mnemonic", async () => {
     twelveOrMoreWordMnemonics.forEach((m) => {
-      const keyring1 = new HDSeedLoop({ mnemonic: m })
-      const keyring2 = new HDSeedLoop({ mnemonic: m })
-      expect(keyring1.id).toBe(keyring2.id)
-    })
-  })
+      const keyring1 = new HDSeedLoop({ mnemonic: m });
+      const keyring2 = new HDSeedLoop({ mnemonic: m });
+      expect(keyring1.id).toBe(keyring2.id);
+    });
+  });
 
   it("signs EVM transactions recoverably", async () => {
-    for(const m of twelveOrMoreWordMnemonics){
-        const seedloop = new HDSeedLoop({ mnemonic: m })
-        const networkEth:Network = NetworkFromTicker("eth");
-        seedloop.addAddresses(networkEth, 1)
-        const addresses = seedloop.getAddresses(networkEth);
-        for(const address of addresses){
-          const tx: TransactionRequest = {
-            to: "0x0000000000000000000000000000000000000000",
-            from:address,
-            value: 300000,
-            gasLimit: 300000,
-            gasPrice: 300000,
-            nonce: 300000,
-            type:1
-          }
-          const signedTx:SignedTransaction = await seedloop.signTransaction(address, {evmTransaction:tx}, networkEth)
-          expect(signedTx.evmFamilyTx).toBeDefined();
-          if(!signedTx.evmFamilyTx) return; 
-          const parsed = parse(signedTx.evmFamilyTx)
-          const sig = {
-            r: parsed.r as string,
-            s: parsed.s as string,
-            v: parsed.v as number,
-          }
-          // workaround ethers object key issue
-          if(tx.from){
-            tx.from = address
-          }
-          const digest = keccak256(serialize(<UnsignedTransaction>tx));
-          let recoveredAddress = recoverAddress(digest, sig).toLowerCase();
-          expect(recoveredAddress).toEqual(address)
-          expect(parsed.from?.toLowerCase()).toEqual(address.toLowerCase())
+    for (const m of twelveOrMoreWordMnemonics) {
+      const seedloop = new HDSeedLoop({ mnemonic: m });
+      const networkEth: Network = NetworkFromTicker("eth");
+      seedloop.addAddresses(networkEth, 1);
+      const addresses = seedloop.getAddresses(networkEth);
+      for (const address of addresses) {
+        const tx: TransactionRequest = {
+          to: "0x0000000000000000000000000000000000000000",
+          from: address,
+          value: 300000,
+          gasLimit: 300000,
+          gasPrice: 300000,
+          nonce: 300000,
+          type: 1,
+        };
+        const signedTx: SignedTransaction = await seedloop.signTransaction(
+          address,
+          { evmTransaction: tx },
+          networkEth
+        );
+        expect(signedTx.evmFamilyTx).toBeDefined();
+        if (!signedTx.evmFamilyTx) return;
+        const parsed = parse(signedTx.evmFamilyTx);
+        console.log(signedTx.evmFamilyTx);
+        const sig = {
+          r: parsed.r as string,
+          s: parsed.s as string,
+          v: parsed.v as number,
+        };
+        // workaround ethers object key issue
+        if (tx.from) {
+          tx.from = address;
         }
+        const digest = keccak256(serialize(<UnsignedTransaction>tx));
+        let recoveredAddress = recoverAddress(digest, sig).toLowerCase();
+        expect(recoveredAddress).toEqual(address);
+        expect(parsed.from?.toLowerCase()).toEqual(address.toLowerCase());
+      }
     }
-  })
+  });
 
   it("generates the same addresses from the same mnemonic", async () => {
     await Promise.all(
       twelveOrMoreWordMnemonics.map(async (m) => {
-        const seedloop1 = new HDSeedLoop({ mnemonic: m })
-        const seedloop2 = new HDSeedLoop({ mnemonic: m })
+        const seedloop1 = new HDSeedLoop({ mnemonic: m });
+        const seedloop2 = new HDSeedLoop({ mnemonic: m });
         // using NEAR network in this case... can subsititute any other
-        let networkNear:Network = NetworkFromTicker("near");
-        expect((await seedloop1.getAddresses(networkNear)).length).toBeGreaterThan(0)
-        expect((await seedloop2.getAddresses(networkNear)).length).toBeGreaterThan(0)
+        let networkNear: Network = NetworkFromTicker("near");
+        expect(
+          (await seedloop1.getAddresses(networkNear)).length
+        ).toBeGreaterThan(0);
+        expect(
+          (await seedloop2.getAddresses(networkNear)).length
+        ).toBeGreaterThan(0);
 
         expect(seedloop1.getAddresses(networkNear)).toStrictEqual(
           seedloop2.getAddresses(networkNear)
-        )
+        );
       })
-    )
-  })
+    );
+  });
 
   it("signs messages recoverably with EVM networks", () => {
-      validDerivations.map((m) => {
-        const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic })
-        const networkEth:Network = NetworkFromTicker("eth");
-        const addresses = seedloop.getAddresses(networkEth);
-        for(const address of addresses){
-          const message = "recoverThisMessage"
-          const sig = seedloop.signMessage(address, message, networkEth);
-          let recoveredAddress = recoverAddress(hashMessage(message), sig).toLowerCase();
-          expect(recoveredAddress).toEqual(address)
-        }
-      })
-  })
+    validDerivations.map((m) => {
+      const seedloop = new HDSeedLoop({ mnemonic: m.mnemonic });
+      const networkEth: Network = NetworkFromTicker("eth");
+      const addresses = seedloop.getAddresses(networkEth);
+      for (const address of addresses) {
+        const message = "recoverThisMessage";
+        const sig = seedloop.signMessage(address, message, networkEth);
+        let recoveredAddress = recoverAddress(
+          hashMessage(message),
+          sig
+        ).toLowerCase();
+        expect(recoveredAddress).toEqual(address);
+      }
+    });
+  });
 
-  it(("locks and unlocks seedloop"), ()=>{
+  it("locks and unlocks seedloop", () => {
     const originalMnemonic = validMnemonics[0];
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    for(const passphrase of testPassphrases){
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    for (const passphrase of testPassphrases) {
       seedloop.addPassword(passphrase);
       seedloop.lock();
-      let mnemonic = seedloop.getSeedPhrase()
+      let mnemonic = seedloop.getSeedPhrase();
       expect(mnemonic).toBeNull();
       let unlocked = seedloop.unlock(passphrase);
       expect(unlocked).toBeTruthy();
-      mnemonic = seedloop.getSeedPhrase()
+      mnemonic = seedloop.getSeedPhrase();
       expect(mnemonic).toEqual(originalMnemonic);
     }
-  })
+  });
 
-  it(("locks and unlocks seedloop. can then create proper signature."), ()=>{
+  it("locks and unlocks seedloop. can then create proper signature.", () => {
     const originalMnemonic = validMnemonics[0];
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    for(const passphrase of testPassphrases){
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    for (const passphrase of testPassphrases) {
       seedloop.addPassword(passphrase);
       seedloop.lock();
-      let mnemonic = seedloop.getSeedPhrase()
+      let mnemonic = seedloop.getSeedPhrase();
       expect(mnemonic).toBeNull();
       let unlocked = seedloop.unlock(passphrase);
       expect(unlocked).toBeTruthy();
-      mnemonic = seedloop.getSeedPhrase()
+      mnemonic = seedloop.getSeedPhrase();
       expect(mnemonic).toEqual(originalMnemonic);
       // test signature after unlock
       const networkEth = NetworkFromTicker("eth");
       const addresses = seedloop.getAddresses(networkEth);
-      for(const address of addresses){
-        const message = "recoverThisMessage"
+      for (const address of addresses) {
+        const message = "recoverThisMessage";
         const sig = seedloop.signMessage(address, message, networkEth);
-        let recoveredAddress = recoverAddress(hashMessage(message), sig).toLowerCase();
-        expect(recoveredAddress).toEqual(address)
+        let recoveredAddress = recoverAddress(
+          hashMessage(message),
+          sig
+        ).toLowerCase();
+        expect(recoveredAddress).toEqual(address);
       }
     }
-  })
+  });
 
-  it(("can fetch addresses from locked seedloop"), ()=>{
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let networkNear:Network = NetworkFromTicker("near");
-    let passphrase = "testingphrase"
+  it("can fetch addresses from locked seedloop", () => {
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let networkNear: Network = NetworkFromTicker("near");
+    let passphrase = "testingphrase";
     let unlockedAddresses = seedloop.getAddresses(networkNear);
     seedloop.addPassword(passphrase);
     seedloop.lock();
     let lockedAddresses = seedloop.getAddresses(networkNear);
     expect(lockedAddresses).toStrictEqual(unlockedAddresses);
-  })
+  });
 
-
-  it(("can serialize and deserialize locked seedloop with addresses"), ()=>{
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let networkNear:Network = NetworkFromTicker("near");
-    let passphrase = "testingphrase"
+  it("can serialize and deserialize locked seedloop with addresses", () => {
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let networkNear: Network = NetworkFromTicker("near");
+    let passphrase = "testingphrase";
     let unlockedAddresses = seedloop.getAddresses(networkNear);
     // lock and serialize
     seedloop.addPassword(passphrase);
@@ -283,25 +312,25 @@ it("generates same SOL address as legacy wallets", ()=>{
     seedloop = HDSeedLoop.deserialize(serializedloop);
     let lockedAddresses = seedloop.getAddresses(networkNear);
     expect(lockedAddresses).toStrictEqual(unlockedAddresses);
-  })
+  });
 
-  it(("can unlock seedloop that was serialized when locked"), ()=>{
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let passphrase = "testingphrase"
+  it("can unlock seedloop that was serialized when locked", () => {
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let passphrase = "testingphrase";
     // lock and serialize
     seedloop.addPassword(passphrase);
-      seedloop.lock();
+    seedloop.lock();
     let serializedloop = seedloop.serialize();
     // deserialize
     seedloop = HDSeedLoop.deserialize(serializedloop);
     let unlocked = seedloop.unlock(passphrase);
     expect(unlocked).toBeTruthy();
-  })
+  });
 
-  it(("encryption password persists"), ()=>{
+  it("encryption password persists", () => {
     const mnemonic = validMnemonics[0];
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let passphrase = "testingphrase"
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let passphrase = "testingphrase";
     // lock and serialize
     seedloop.addPassword(passphrase);
     seedloop.lock();
@@ -312,17 +341,16 @@ it("generates same SOL address as legacy wallets", ()=>{
     expect(unlocked2).toBeTruthy();
     let mnemonicUnlocked = seedloop.getSeedPhrase();
     expect(mnemonicUnlocked).toEqual(mnemonic);
-  })
+  });
 
-  it(("fails to unlock with wrong passphrase"), ()=>{
-    let seedloop =  new HDSeedLoop({ mnemonic: validMnemonics[0] });
-    let passphrase = "testingphrase"
+  it("fails to unlock with wrong passphrase", () => {
+    let seedloop = new HDSeedLoop({ mnemonic: validMnemonics[0] });
+    let passphrase = "testingphrase";
     // lock seedloop
     seedloop.addPassword(passphrase);
     seedloop.lock();
     // unlock with wrong password
-    let unlocked = seedloop.unlock("wrong")
+    let unlocked = seedloop.unlock("wrong");
     expect(unlocked).toBeFalsy();
-  })
-
+  });
 });
