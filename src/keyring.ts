@@ -14,6 +14,7 @@ import { encode } from "bs58";
 import { keccak256 } from "@ethersproject/keccak256";
 
 import {
+  getBasePath,
   getFullPath,
   Network,
   NetworkFamily,
@@ -205,7 +206,14 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     message: string
   ): string {
     let newHDKey = HDKey.fromMasterSeed(seed);
-    newHDKey = newHDKey.derive(account.fullpath);
+    let ethNetwork = NetworkFromTicker("eth");
+    const baseNetworkPath = getBasePath(
+      ethNetwork.ticker,
+      ethNetwork.chainId,
+      ethNetwork.networkFamily
+    );
+    newHDKey = newHDKey.derive(baseNetworkPath);
+    newHDKey = newHDKey.derive("m/" + account.index);
     let signingKey: SigningKey = new SigningKey(newHDKey.privateKey);
     const signature = joinSignature(
       signingKey.signDigest(hashMessage(message))
@@ -405,8 +413,14 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     transaction: TransactionRequest
   ): Promise<string> {
     let newHDKey = HDKey.fromMasterSeed(seed);
-    newHDKey = newHDKey.derive(account.fullpath);
-
+    let ethNetwork = NetworkFromTicker("eth");
+    const baseNetworkPath = getBasePath(
+      ethNetwork.ticker,
+      ethNetwork.chainId,
+      ethNetwork.networkFamily
+    );
+    newHDKey = newHDKey.derive(baseNetworkPath);
+    newHDKey = newHDKey.derive("m/" + account.index);
     let signingKey: SigningKey = new SigningKey(newHDKey.privateKey);
     if (!SigningKey.isSigningKey(signingKey)) {
       throw new Error(
