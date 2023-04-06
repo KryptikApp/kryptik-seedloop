@@ -127,7 +127,6 @@ describe("Test Seedloop Features", () => {
       const addresses = seedloop.getAddresses(networkAlgo);
       // test first address
       addresses.map((a) => {
-        console.log(a);
         expect(isValidAlgorandAddress(a)).toBeTruthy();
       });
     });
@@ -352,5 +351,14 @@ describe("Test Seedloop Features", () => {
     // unlock with wrong password
     let unlocked = seedloop.unlock("wrong");
     expect(unlocked).toBeFalsy();
+  });
+
+  it("can generate proper substrate address", () => {
+    const seedloop = new HDSeedLoop({ mnemonic: validMnemonics[3] });
+    const networkSubstrate: Network = NetworkFromTicker("dot");
+    const addresses = seedloop.getAddresses(networkSubstrate);
+    expect(addresses[0]).toEqual(
+      "15mTymZPEG6xyeydug2s1V5PobUJ86bKRLqKyDPH41eg7WbR"
+    );
   });
 });

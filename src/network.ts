@@ -12,6 +12,8 @@ export enum NetworkFamily {
   // ALGO compatible blockchains
   // standard derivation path: m/44'/283'/0'/0/0
   Algorand = 5,
+  // Substrate compatible blockchains
+  Substrate = 6,
 }
 
 export class NetworkInfo {
@@ -40,6 +42,7 @@ export let NetworkInfoDict: { [name: string]: NetworkInfo } = {
   avaxc: new NetworkInfo(9005, NetworkFamily.EVM),
   one: new NetworkInfo(1023, NetworkFamily.Bitcoin),
   algo: new NetworkInfo(283, NetworkFamily.Algorand),
+  dot: new NetworkInfo(354, NetworkFamily.Substrate),
 };
 
 export interface INetwork {
@@ -102,6 +105,7 @@ export class Network {
 // default networks used to init. seed loop
 export let defaultNetworks: { [name: string]: Network } = {};
 defaultNetworks.algo = new Network({ fullName: "Algorand", ticker: "algo" });
+defaultNetworks.dot = new Network({ fullName: "Polkadot", ticker: "dot" });
 defaultNetworks.eth = new Network({ fullName: "Ethereum", ticker: "eth" });
 defaultNetworks.sol = new Network({ fullName: "Solana", ticker: "sol" });
 defaultNetworks.avaxc = new Network({
@@ -141,7 +145,8 @@ export function getBasePath(
     networkFamily &&
     (networkFamily == NetworkFamily.Solana ||
       NetworkFamily.Near ||
-      NetworkFamily.Algorand)
+      NetworkFamily.Algorand ||
+      NetworkFamily.Substrate)
   ) {
     switch (ticker.toLowerCase()) {
       case "near": {
@@ -168,7 +173,8 @@ export function getFullPath(
   if (
     networkFamily == NetworkFamily.Solana ||
     networkFamily == NetworkFamily.Near ||
-    NetworkFamily.Algorand
+    networkFamily == NetworkFamily.Algorand ||
+    networkFamily == NetworkFamily.Substrate
   ) {
     path = basePath + `/${depth}'`;
   }
@@ -198,6 +204,9 @@ export function NetworkFamilyFromFamilyName(familyName: string): NetworkFamily {
     }
     case "algorand": {
       return NetworkFamily.Algorand;
+    }
+    case "substrate": {
+      return NetworkFamily.Substrate;
     }
     default: {
       // return evm network family as default

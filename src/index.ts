@@ -81,6 +81,7 @@ export interface SignedTransaction {
   solanaFamilyTx?: Uint8Array;
   nearFamilyTx?: Uint8Array;
   algorandFamilyTx?: Uint8Array;
+  substrateFamilyTx?: Uint8Array;
 }
 
 export type SerializedSeedLoop = {

@@ -21,7 +21,7 @@ import {
   NetworkFromTicker,
 } from "./network";
 import { Account, CurveType } from "./account";
-import { encodeAlgorandAdress } from "./encoding";
+import { encodeAlgorandAddress, encodeSubstrateAddress } from "./encoding";
 
 export type KeyringOptions = {
   basePath: string;
@@ -245,6 +245,9 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       case NetworkFamily.Algorand: {
         return this.generateAlgorandAccount(seed, index);
       }
+      case NetworkFamily.Substrate: {
+        return this.generateSubstrateAccount(seed, index);
+      }
       default: {
         throw Error(`Unable to generate address for: ${this.network.fullName}`);
       }
@@ -265,7 +268,31 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
     // get hd derived ed25519 curve seed
     let hdED25519Seed: Buffer = createEd25519SecretKey(accountPath, seed);
     let keypair: nacl.SignKeyPair = sign.keyPair.fromSeed(hdED25519Seed);
-    const newAddress: string = encodeAlgorandAdress(keypair.publicKey);
+    const newAddress: string = encodeAlgorandAddress(keypair.publicKey);
+    let newAccount: Account = {
+      address: newAddress,
+      fullpath: accountPath,
+      curve: CurveType.Ed25519,
+      index: accountNumber,
+    };
+    return newAccount;
+  }
+
+  private generateSubstrateAccount(
+    seed: Buffer,
+    accountNumber: number
+  ): Account {
+    let newHDKey = HDKey.fromMasterSeed(seed);
+    let accountPath = getFullPath(
+      this.basePath,
+      this.network.networkFamily,
+      accountNumber
+    );
+    newHDKey = newHDKey.derive(accountPath);
+    // get hd derived ed25519 curve seed
+    let hdED25519Seed: Buffer = createEd25519SecretKey(accountPath, seed);
+    let keypair: nacl.SignKeyPair = sign.keyPair.fromSeed(hdED25519Seed);
+    const newAddress: string = encodeSubstrateAddress(keypair.publicKey);
     let newAccount: Account = {
       address: newAddress,
       fullpath: accountPath,
@@ -375,6 +402,17 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
         );
         return signedTx;
       }
+      case NetworkFamily.Substrate: {
+        // ensure substrate tx. was passed in
+        if (!txParams.transactionBuffer)
+          throw Error("Sol transaction not provided.");
+        signedTx.substrateFamilyTx = await this.signSubstrateMessage(
+          seed,
+          account,
+          txParams.transactionBuffer
+        );
+        return signedTx;
+      }
       case NetworkFamily.Near: {
         // ensure near tx. was passed in
         if (!txParams.transactionBuffer)
@@ -396,6 +434,18 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
   }
 
   private async signAlgorandMessage(
+    seed: Buffer,
+    account: Account,
+    msg: Uint8Array
+  ) {
+    // get hd derived ed25519 curve seed
+    let hdED25519Seed: Buffer = createEd25519SecretKey(account.fullpath, seed);
+    let keypair: nacl.SignKeyPair = sign.keyPair.fromSeed(hdED25519Seed);
+    const signature = sign.detached(msg, keypair.secretKey);
+    return Buffer.from(signature);
+  }
+
+  private async signSubstrateMessage(
     seed: Buffer,
     account: Account,
     msg: Uint8Array

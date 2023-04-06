@@ -1,6 +1,9 @@
 import { sign } from "tweetnacl";
 import base32 from "hi-base32";
 import sha512 from "js-sha512";
+import substrateKeyRing from "@polkadot/ui-keyring";
+import base58, { encode } from "bs58";
+import { blake2b } from "blakejs";
 
 export const naclPublicKeyLength = sign.publicKeyLength;
 export const naclSecretKeyLength = sign.secretKeyLength;
@@ -9,7 +12,10 @@ export const naclSeedBytesLength = 32;
 
 const ALGORAND_ADDRESS_BYTE_LENGTH = 36;
 const ALGORAND_CHECKSUM_BYTE_LENGTH = 4;
+const SUBSTRATE_CHECKSUM_BYTE_LENGTH = 2;
 const ALGORAND_ADDRESS_LENGTH = 58;
+const SUBSTRATE_ADDRESS_LENGTH = 49;
+
 export const ALGORAND_ZERO_ADDRESS_STRING =
   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ";
 
@@ -27,7 +33,7 @@ export const UNEXPECTED_PK_LEN_ERROR_MSG =
  * @param address - a raw Algorand address
  * @returns the address and checksum encoded as a string.
  */
-export function encodeAlgorandAdress(address: Uint8Array): string {
+export function encodeAlgorandAddress(address: Uint8Array): string {
   // compute checksum
   const checksum = genericHash(address).slice(
     naclPublicKeyLength - ALGORAND_CHECKSUM_BYTE_LENGTH,
@@ -36,6 +42,36 @@ export function encodeAlgorandAdress(address: Uint8Array): string {
   const addr = base32.encode(concatArrays(address, checksum));
 
   return addr.toString().slice(0, ALGORAND_ADDRESS_LENGTH); // removing the extra '===='
+}
+
+export function encodeSubstrateAddress(address: Uint8Array): string {
+  // compute checksum
+  const checksum = genericHash(address).slice(
+    naclPublicKeyLength - SUBSTRATE_CHECKSUM_BYTE_LENGTH,
+    naclPublicKeyLength
+  );
+  try {
+    substrateKeyRing.loadAll({
+      isDevelopment: true,
+      ss58Format: 42,
+      type: "ed25519",
+    });
+  } catch (e) {
+    // pass for now
+  }
+  const test = substrateKeyRing.encodeAddress(address);
+  const addr = encode(concatArrays([42], address, checksum));
+  console.log("Substrate Address:");
+  console.log(addr.toString().slice(0, SUBSTRATE_ADDRESS_LENGTH));
+  console.log(test);
+  // compute checksum
+  if (address.length != 32) {
+    throw new Error("Invalid public key length");
+  }
+  let bytes = new Uint8Array([42, ...address]);
+  let hash = blake2b(bytes);
+  let complete = new Uint8Array([...bytes, hash[0], hash[1]]);
+  return encode(complete);
 }
 
 /**
@@ -114,4 +150,59 @@ function arrayEqual(a: ArrayLike<any>, b: ArrayLike<any>) {
     return false;
   }
   return Array.from(a).every((val, i) => val === b[i]);
+}
+
+/**
+ * @name u8aConcat
+ * @summary Creates a concatenated Uint8Array from the inputs.
+ * @description
+ * Concatenates the input arrays into a single `UInt8Array`.
+ * @example
+ * <BR>
+ *
+ * ```javascript
+ * import { { u8aConcat } from '@polkadot/util';
+ *
+ * u8aConcat(
+ *   new Uint8Array([1, 2, 3]),
+ *   new Uint8Array([4, 5, 6])
+ * ); // [1, 2, 3, 4, 5, 6]
+ * ```
+ */
+export function u8aConcat(...list: readonly U8aLike[]): Uint8Array {
+  const u8as = new Array<Uint8Array>(list.length);
+  let length = 0;
+
+  for (let i = 0; i < list.length; i++) {
+    u8as[i] = u8aToU8a(list[i]);
+    length += u8as[i].length;
+  }
+
+  return u8aConcatStrict(u8as, length);
+}
+
+/**
+ * @name u8aConcatStrict
+ * @description A strict version of [[u8aConcat]], accepting only Uint8Array inputs
+ */
+export function u8aConcatStrict(
+  u8as: readonly Uint8Array[],
+  length = 0
+): Uint8Array {
+  let offset = 0;
+
+  if (!length) {
+    for (let i = 0; i < u8as.length; i++) {
+      length += u8as[i].length;
+    }
+  }
+
+  const result = new Uint8Array(length);
+
+  for (let i = 0; i < u8as.length; i++) {
+    result.set(u8as[i], offset);
+    offset += u8as[i].length;
+  }
+
+  return result;
 }
