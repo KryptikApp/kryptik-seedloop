@@ -127,7 +127,6 @@ describe("Test Seedloop Features", () => {
       const addresses = seedloop.getAddresses(networkAlgo);
       // test first address
       addresses.map((a) => {
-        console.log(a);
         expect(isValidAlgorandAddress(a)).toBeTruthy();
       });
     });
@@ -190,7 +189,6 @@ describe("Test Seedloop Features", () => {
         expect(signedTx.evmFamilyTx).toBeDefined();
         if (!signedTx.evmFamilyTx) return;
         const parsed = parse(signedTx.evmFamilyTx);
-        console.log(signedTx.evmFamilyTx);
         const sig = {
           r: parsed.r as string,
           s: parsed.s as string,
