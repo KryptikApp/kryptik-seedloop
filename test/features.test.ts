@@ -179,6 +179,7 @@ describe("Test Seedloop Features", () => {
           gasLimit: 300000,
           gasPrice: 300000,
           nonce: 300000,
+          chainId: 10,
         };
         const signedTx: SignedTransaction = await seedloop.signTransaction(
           address,
@@ -194,9 +195,6 @@ describe("Test Seedloop Features", () => {
           v: parsed.v as number,
         };
         // workaround ethers object key issue
-        if (tx.from) {
-          tx.from = address;
-        }
         delete tx.from;
         const digest = keccak256(serialize(<UnsignedTransaction>tx));
         let recoveredAddress = recoverAddress(digest, sig).toLowerCase();
