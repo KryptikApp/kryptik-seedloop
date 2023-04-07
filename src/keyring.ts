@@ -428,7 +428,13 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       );
     }
 
-    let txResolved = await resolveProperties(transaction);
+    let txResolved: TransactionRequest = {};
+    // try to resolve properties... fall back to input tx if resolution fails
+    try {
+      txResolved = await resolveProperties(transaction);
+    } catch (e) {
+      txResolved = transaction;
+    }
     if (txResolved.from != null) {
       if (txResolved.from.toLowerCase() !== account.address.toLowerCase()) {
         throw Error("transaction from address mismatch");
@@ -438,7 +444,6 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
 
     const txDigest = keccak256(serialize(<UnsignedTransaction>txResolved));
     const sigObject = signingKey.signDigest(txDigest);
-    txResolved.from = account.address;
     const signedTx = serialize(<UnsignedTransaction>txResolved, sigObject);
     return signedTx;
   }
