@@ -51,6 +51,8 @@ export {
   KeyringOptions,
   defaultKeyringOptions,
   TransactionParameters,
+  TypedDataParameters,
+  EVMTypedData,
 } from "./keyring";
 
 export type Options = {
