@@ -12,6 +12,7 @@ import {
 import { hashMessage } from "@ethersproject/hash";
 import { keccak256 } from "@ethersproject/keccak256";
 import { isValidAlgorandAddress } from "../src/utils";
+import { TypedDataEncoder } from "@ethersproject/hash/lib/typed-data";
 
 const validMnemonics = [
   "square time hurdle gospel crash uncle flash tomorrow city space shine sad fence ski harsh salt need edit name fold corn chuckle resource else",
@@ -348,5 +349,53 @@ describe("Test Seedloop Features", () => {
     // unlock with wrong password
     let unlocked = seedloop.unlock("wrong");
     expect(unlocked).toBeFalsy();
+  });
+
+  it("signs typed data recoverably with EVM networks", async () => {
+    await Promise.all(
+      twelveOrMoreWordMnemonics.map(async (m) => {
+        const seedloop = new HDSeedLoop({ mnemonic: m });
+        const networkEth: Network = NetworkFromTicker("eth");
+        const addresses = seedloop.getAddresses(networkEth);
+        for (const address of addresses) {
+          const domain = {
+            name: "Ether Mail",
+            version: "1",
+            chainId: 1,
+            verifyingContract: "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC",
+          };
+
+          const types = {
+            Person: [{ name: "name", type: "string" }],
+            Mail: [
+              { name: "from", type: "Person" },
+              { name: "to", type: "Person" },
+              { name: "contents", type: "string" },
+            ],
+          };
+
+          const value = {
+            contents: "Hello, Bob!",
+            from: {
+              name: "Alice",
+            },
+            to: {
+              name: "Bob",
+            },
+          };
+
+          const sig = await seedloop.signTypedData(
+            address,
+            { evmTypedData: { domain: domain, types: types, value: value } },
+            networkEth
+          );
+          const recoveredAddy: string = recoverAddress(
+            TypedDataEncoder.hash(domain, types, value),
+            sig
+          ).toLowerCase();
+          expect(recoveredAddy).toEqual(address);
+        }
+      })
+    );
   });
 });
