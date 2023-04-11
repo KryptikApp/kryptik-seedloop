@@ -22,6 +22,11 @@ import {
 } from "./network";
 import { Account, CurveType } from "./account";
 import { encodeAlgorandAdress } from "./encoding";
+import { TypedDataEncoder } from "@ethersproject/hash/lib/typed-data";
+import {
+  TypedDataDomain,
+  TypedDataField,
+} from "@ethersproject/abstract-signer";
 
 export type KeyringOptions = {
   basePath: string;
@@ -50,6 +55,16 @@ export interface TransactionParameters {
   transactionBuffer?: Uint8Array;
 }
 
+export interface TypedDataParameters {
+  evmTypedData?: EVMTypedData;
+}
+
+export interface EVMTypedData {
+  domain: TypedDataDomain;
+  types: Record<string, Array<TypedDataField>>;
+  value: Record<string, any>;
+}
+
 export interface Keyring<T> {
   serialize(): T;
   getAddresses(): string[];
@@ -65,6 +80,11 @@ export interface Keyring<T> {
     seed: Buffer,
     txParams: TransactionParameters
   ): Promise<SignedTransaction>;
+  signTypedData(
+    seed: Buffer,
+    address: string,
+    data: TypedDataParameters
+  ): Promise<string>;
 }
 
 export interface KeyringClass<T> {
@@ -198,6 +218,77 @@ export class HDKeyring implements Keyring<SerializedHDKeyring> {
       }
     }
     return signedMsg;
+  }
+
+  async signTypedData(
+    seed: Buffer,
+    address: string,
+    data: TypedDataParameters
+  ): Promise<string> {
+    let account: Account | undefined = this.accounts.find(
+      (a) => a.address.toLowerCase() == address.toLowerCase()
+    );
+    if (!account)
+      throw new Error(
+        "Error: Unable to find an account that matches the given address"
+      );
+    let signedMsg: string;
+    switch (this.network.networkFamily) {
+      // TODO: UPDATE TO PROVIDE SUPPORT FOR NON-EVM MESSAGES
+      case NetworkFamily.EVM: {
+        if (!data.evmTypedData) {
+          throw new Error("Error: EVM typed data not provided.");
+        }
+        signedMsg = await this.signEVMTypedData(
+          seed,
+          account,
+          data.evmTypedData
+        );
+        break;
+      }
+      default: {
+        throw Error(
+          `Error: ${this.network.fullName} message signatures not yet implemented.`
+        );
+      }
+    }
+    return signedMsg;
+  }
+
+  private async signEVMTypedData(
+    seed: Buffer,
+    account: Account,
+    evmTypedData: EVMTypedData
+  ): Promise<string> {
+    const { domain, types, value } = evmTypedData;
+    let newHDKey = HDKey.fromMasterSeed(seed);
+    let ethNetwork = NetworkFromTicker("eth");
+    const baseNetworkPath = getBasePath(
+      ethNetwork.ticker,
+      ethNetwork.chainId,
+      ethNetwork.networkFamily
+    );
+    newHDKey = newHDKey.derive(baseNetworkPath);
+    newHDKey = newHDKey.derive("m/" + account.index);
+    let signingKey: SigningKey = new SigningKey(newHDKey.privateKey);
+    // resolve names
+    // sign populated data
+    const populated = await TypedDataEncoder.resolveNames(
+      domain,
+      types,
+      value,
+      async (name: string) => {
+        // TODO: consider ens resolution
+        return name;
+      }
+    );
+    const dataToSign: string = TypedDataEncoder.hash(
+      populated.domain,
+      types,
+      populated.value
+    );
+    const signature: string = joinSignature(signingKey.signDigest(dataToSign));
+    return signature;
   }
 
   private signEVMMessage(

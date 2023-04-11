@@ -16,6 +16,7 @@ import {
   KeyringOptions,
   SerializedHDKeyring,
   TransactionParameters,
+  TypedDataParameters,
 } from "./keyring";
 import {
   COSMOS_FAMILY_KEYRING_NAME,
@@ -108,6 +109,11 @@ export interface SeedLoop<T> {
   unlock(password: string): boolean;
   getIsLocked(): boolean;
   getSeedPhrase(): string | null;
+  signTypedData(
+    address: string,
+    data: TypedDataParameters,
+    network: Network
+  ): Promise<string>;
 }
 
 export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop> {
@@ -455,6 +461,27 @@ export default class HDSeedLoop implements SeedLoop<SerializedSeedLoop> {
     let seed = mnemonicToSeedSync(this.mnemonic);
     let signedMsg = keyring.signMessage(seed, address, message);
     return signedMsg;
+  }
+
+  async signTypedData(
+    address: string,
+    data: TypedDataParameters,
+    network: Network
+  ): Promise<string> {
+    if (this.isLocked) {
+      throw new Error(
+        "Error: Seedloop is locked. Please unlock the seedloop, before signing."
+      );
+    }
+    if (!this.mnemonic) {
+      throw new Error(
+        "Error: No mnemonic exists on this seedloop. Required for signatures."
+      );
+    }
+    let keyring = this.getKeyRing(network);
+    let seed = mnemonicToSeedSync(this.mnemonic);
+    let signedData = await keyring.signTypedData(seed, address, data);
+    return signedData;
   }
 
   // routes transaction to correct signer
